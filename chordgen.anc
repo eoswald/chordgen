@@ -217,6 +217,7 @@
 
         (let debug 0)
         (let select-device 0)
+        (let help 0)
         (for i 1 to argc
             (let arg (get argv (* i 8)))
             (if (|| (== (strcmp (cast char* arg) "-d") 0)
@@ -226,7 +227,22 @@
             (if (|| (== (strcmp (cast char* arg) "-s") 0)
                     (== (strcmp (cast char* arg) "--select-device") 0))
                 (set! select-device 1)
+            (do))
+            (if (|| (== (strcmp (cast char* arg) "-h") 0)
+                    (== (strcmp (cast char* arg) "--help") 0))
+                (set! help 1)
             (do)))
+
+        (if help
+            (do
+                (printf "Usage: chordgen [options]\n\n")
+                (printf "MIDI chord trainer. Displays a random chord and waits for you to play it.\n\n")
+                (printf "Options:\n")
+                (printf "  -s, --select-device   List MIDI input devices and choose one interactively\n")
+                (printf "  -d, --debug           Print raw MIDI note numbers on each key event\n")
+                (printf "  -h, --help            Show this help message\n")
+                (return 0))
+        (do))
         (let-chords note-names "C" "C♯" "D" "E♭" "E" "F" "F♯" "G" "A♭" "A" "B♭" "B")
 
         ; Store chord names as pointers in an 8-byte-per-slot chords array

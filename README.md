@@ -36,6 +36,7 @@ The program picks a random chord (name and inversion) and waits for you to play 
 |------|-------------|
 | `-s`, `--select-device` | List available MIDI input devices and choose one interactively. Without this flag the first input device is used automatically. |
 | `-d`, `--debug` | Print raw MIDI note numbers on every key press and release. |
+| `-h`, `--help` | Show usage information and exit. |
 
 ### Examples
 
