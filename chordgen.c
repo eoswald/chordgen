@@ -577,48 +577,45 @@ AnchorVal print_help(void) {
 
 AnchorVal parse_args(AnchorVal argc, AnchorVal argv) {
     AnchorVal a = anchor_alloc(ANCHOR_SIZEOF_Args);
+    { AnchorVal _anc_t44 = anchor_int(0);
+      __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_debug, &_anc_t44, ANCHOR_SIZE_Args_debug); }
+    ANCHOR_NIL;
+    { AnchorVal _anc_t45 = anchor_int(0);
+      __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_select_device, &_anc_t45, ANCHOR_SIZE_Args_select_device); }
+    ANCHOR_NIL;
+    { AnchorVal _anc_t46 = anchor_int(0);
+      __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_help, &_anc_t46, ANCHOR_SIZE_Args_help); }
+    ANCHOR_NIL;
     {
         AnchorVal i = anchor_int(1);
         while (_ANCH_IVAL(anchor_lt(i, argc))) {
-            AnchorVal _anc_t44 = 0;
-            __builtin_memcpy(&_anc_t44, (char*)_ANCH_HPTR(argv) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
-            AnchorVal arg = _anc_t44;
-            int _anc_t46_raw = strcmp(((char*)_anch_ptr(arg)), "-d");
-            AnchorVal _anc_t46 = anchor_int((intptr_t)_anc_t46_raw);
-            if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(_anc_t46, anchor_int(0)) || ({ int _anc_t45_raw = strcmp(((char*)_anch_ptr(arg)), "--debug");
-AnchorVal _anc_t45 = anchor_int((intptr_t)_anc_t45_raw);
-(AnchorVal)!!anchor_eq(_anc_t45, anchor_int(0)); })))) {
-                { AnchorVal _anc_t47 = anchor_int(1);
-                  __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_debug, &_anc_t47, ANCHOR_SIZE_Args_debug); }
-                ANCHOR_NIL;
-            } else {
-                { AnchorVal _anc_t48 = anchor_int(0);
-                  __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_debug, &_anc_t48, ANCHOR_SIZE_Args_debug); }
+            AnchorVal _anc_t47 = 0;
+            __builtin_memcpy(&_anc_t47, (char*)_ANCH_HPTR(argv) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
+            AnchorVal arg = _anc_t47;
+            int _anc_t49_raw = strcmp(((char*)_anch_ptr(arg)), "-d");
+            AnchorVal _anc_t49 = anchor_int((intptr_t)_anc_t49_raw);
+            if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(_anc_t49, anchor_int(0)) || ({ int _anc_t48_raw = strcmp(((char*)_anch_ptr(arg)), "--debug");
+AnchorVal _anc_t48 = anchor_int((intptr_t)_anc_t48_raw);
+(AnchorVal)!!anchor_eq(_anc_t48, anchor_int(0)); })))) {
+                { AnchorVal _anc_t50 = anchor_int(1);
+                  __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_debug, &_anc_t50, ANCHOR_SIZE_Args_debug); }
                 ANCHOR_NIL;
             }
-            int _anc_t50_raw = strcmp(((char*)_anch_ptr(arg)), "-s");
-            AnchorVal _anc_t50 = anchor_int((intptr_t)_anc_t50_raw);
-            if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(_anc_t50, anchor_int(0)) || ({ int _anc_t49_raw = strcmp(((char*)_anch_ptr(arg)), "--select-device");
-AnchorVal _anc_t49 = anchor_int((intptr_t)_anc_t49_raw);
-(AnchorVal)!!anchor_eq(_anc_t49, anchor_int(0)); })))) {
-                { AnchorVal _anc_t51 = anchor_int(1);
-                  __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_select_device, &_anc_t51, ANCHOR_SIZE_Args_select_device); }
-                ANCHOR_NIL;
-            } else {
-                { AnchorVal _anc_t52 = anchor_int(0);
-                  __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_select_device, &_anc_t52, ANCHOR_SIZE_Args_select_device); }
+            int _anc_t52_raw = strcmp(((char*)_anch_ptr(arg)), "-s");
+            AnchorVal _anc_t52 = anchor_int((intptr_t)_anc_t52_raw);
+            if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(_anc_t52, anchor_int(0)) || ({ int _anc_t51_raw = strcmp(((char*)_anch_ptr(arg)), "--select-device");
+AnchorVal _anc_t51 = anchor_int((intptr_t)_anc_t51_raw);
+(AnchorVal)!!anchor_eq(_anc_t51, anchor_int(0)); })))) {
+                { AnchorVal _anc_t53 = anchor_int(1);
+                  __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_select_device, &_anc_t53, ANCHOR_SIZE_Args_select_device); }
                 ANCHOR_NIL;
             }
-            int _anc_t54_raw = strcmp(((char*)_anch_ptr(arg)), "-h");
-            AnchorVal _anc_t54 = anchor_int((intptr_t)_anc_t54_raw);
-            if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(_anc_t54, anchor_int(0)) || ({ int _anc_t53_raw = strcmp(((char*)_anch_ptr(arg)), "--help");
-AnchorVal _anc_t53 = anchor_int((intptr_t)_anc_t53_raw);
-(AnchorVal)!!anchor_eq(_anc_t53, anchor_int(0)); })))) {
-                { AnchorVal _anc_t55 = anchor_int(1);
-                  __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_help, &_anc_t55, ANCHOR_SIZE_Args_help); }
-                ANCHOR_NIL;
-            } else {
-                { AnchorVal _anc_t56 = anchor_int(0);
+            int _anc_t55_raw = strcmp(((char*)_anch_ptr(arg)), "-h");
+            AnchorVal _anc_t55 = anchor_int((intptr_t)_anc_t55_raw);
+            if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(_anc_t55, anchor_int(0)) || ({ int _anc_t54_raw = strcmp(((char*)_anch_ptr(arg)), "--help");
+AnchorVal _anc_t54 = anchor_int((intptr_t)_anc_t54_raw);
+(AnchorVal)!!anchor_eq(_anc_t54, anchor_int(0)); })))) {
+                { AnchorVal _anc_t56 = anchor_int(1);
                   __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_help, &_anc_t56, ANCHOR_SIZE_Args_help); }
                 ANCHOR_NIL;
             }

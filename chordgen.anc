@@ -45,6 +45,14 @@
                 (cons `(set! ,name ,offset ,(car rest))
                       (loop (+ offset 8) (cdr rest))))))]))
 
+(define-syntax parse-arg
+    (syntax-rules ()
+        [(_ args arg var short long)
+         (do
+            (if (|| (== (strcmp (cast char* arg) short) 0)
+                    (== (strcmp (cast char* arg) long) 0))
+                (set! args Args var 1)))]))
+
 (fn gen-chord (chords num-chords inversions num-inversions result)
     (let chord-idx (% (rand) num-chords))
     (let chord (get chords (* chord-idx 8)))
@@ -212,20 +220,14 @@
 
 (fn parse-args (argc argv)
     (let a (alloc (sizeof Args)))
+    (set! a Args debug 0)
+    (set! a Args select-device 0)
+    (set! a Args help 0)
     (for i 1 to argc
         (let arg (get argv (* i 8)))
-        (if (|| (== (strcmp (cast char* arg) "-d") 0)
-                (== (strcmp (cast char* arg) "--debug") 0))
-            (set! a Args debug 1)
-            (set! a Args debug 0))
-        (if (|| (== (strcmp (cast char* arg) "-s") 0)
-                (== (strcmp (cast char* arg) "--select-device") 0))
-            (set! a Args select-device 1)
-            (set! a Args select-device 0))
-        (if (|| (== (strcmp (cast char* arg) "-h") 0)
-                (== (strcmp (cast char* arg) "--help") 0))
-            (set! a Args help 1)
-            (set! a Args help 0)))
+        (parse-arg a arg debug "-d" "--debug")
+        (parse-arg a arg select-device "-s" "--select-device")
+        (parse-arg a arg help "-h" "--help"))
     (return a))
 
 (fn main (argc argv)
