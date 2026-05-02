@@ -1,5 +1,4 @@
 ; chordgen.anc - Generate Chords
-; anchorc chordgen.anc -o chordgen --cflags "-I/opt/homebrew/opt/portmidi/include -L/opt/homebrew/opt/portmidi/lib -lportmidi"
 
 (include <portmidi.h>)
 (include <porttime.h>)
