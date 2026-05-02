@@ -1,0 +1,141 @@
+; chordgen.anc - Generate Chords
+; anchorc chordgen.anc -o chordgen --cflags "-I/opt/homebrew/opt/portmidi/include -L/opt/homebrew/opt/portmidi/lib -lportmidi"
+
+(include <portmidi.h>)
+(include <porttime.h>)
+(include <stdio.h>)
+(include <time.h>)
+(ffi fgets (char* int void*) -> char*)
+(ffi printf (const char* ...) -> int)
+(ffi sprintf (char* const char* ...) -> int)
+(ffi rand   () -> int)
+(ffi srand  (unsigned int) -> void)
+(ffi time   (void*) -> long)
+(ffi Pm_Initialize () -> int)
+(ffi Pm_CountDevices () -> int)
+(ffi Pm_GetDeviceInfo (int) -> (const void*))
+(ffi Pm_OpenInput (void* int int int void*) -> int)
+(ffi Pm_Poll (void* void*) -> int)
+(ffi Pm_Read (void* void* int) -> int)
+(ffi Pt_Sleep (int) -> void)
+
+(define-syntax for
+  (syntax-rules (to)
+    [(_ var from to limit body ...)
+     (block
+       (let var from)
+       (while (< var limit)
+         body ...
+         (set! var (+ var 1))))]))
+
+(fn gen-chord (chords num-chords inversions num-inversions result)
+    (let chord-idx (% (rand) num-chords))
+    (let chord (get chords (* chord-idx 8)))
+
+    (let inversion-idx (% (rand) num-inversions))
+    (let inversion (get inversions (* inversion-idx 16)))
+
+    (sprintf result "%s %s" (cast char* chord) (cast char* inversion))
+    (return result))
+
+(with-arena
+    (fn find-midi-input-device ()
+        (for i 0 to (Pm_CountDevices)
+            (let info (Pm_GetDeviceInfo (cast int i)))
+            (let name (cast char* (get info 16))) ; info->name
+            (let is-output (get info 28 4)) ; info->output
+            (printf "Device %d: %s is-output=%d\n" (cast int i) (cast char* name) (cast int is-output))
+            (if (&& info (== is-output 0)) ; (is input device)
+                (do
+                    (return i)
+                (do)))
+        )
+        (return -1))
+
+    (fn read-chord (midi buf)
+        (while 1
+            (if (== (Pm_Poll (get midi 0)) 1)
+                (do
+                    (let count (Pm_Read (get midi 0) buf 32))
+                    (for i 0 to count
+                        (let message (get buf (* i 8) 4))
+                        (let timestamp (get buf (+ (* i 8) 4) 4))
+                        (let status (band message 0xFF))
+                        (let note (band (rshift message 8) 0xFF))
+                        (let velocity (band (rshift message 16) 0xFF))
+                        (printf "Received MIDI event: status=%d, note=%d, velocity=%d at timestamp: %d\n" (cast int status) (cast int note) (cast int velocity) (cast int timestamp))
+                        (if (&& (== status 0x90) (== note 60))
+                            (do
+                                (printf "Middle C pressed!\n")
+                                (return -1)
+                            (do)))
+                (do))))
+
+            (Pt_Sleep 10)))
+
+    (fn main()
+        ; Store chord names as pointers in an 8-byte-per-slot chords array
+        (let num-chords 18)
+        (let chords (alloc (* num-chords 8)))
+        (set! chords 0 "Cmaj")
+        (set! chords 8 "Cm")
+        (set! chords 16 "Dmaj")
+        (set! chords 24 "Dm")
+        (set! chords 32 "E♭maj")
+        (set! chords 40 "Em")
+        (set! chords 48 "Edim")
+        (set! chords 56 "Fmaj")
+        (set! chords 64 "F♯maj")
+        (set! chords 72 "Gmaj")
+        (set! chords 80 "Gm")
+        (set! chords 88 "Amaj")
+        (set! chords 96 "Am")
+        (set! chords 104 "Adim")
+        (set! chords 112 "B♭maj")
+        (set! chords 120 "Bm")
+        (set! chords 128 "Bdim")
+        (set! chords 136 "C♯m")
+
+        (let num-inversions 3)
+        (let inversions (alloc (* 3 16)))
+        (set! inversions 0 "root")
+        (set! inversions 16 "1st inversion")
+        (set! inversions 32 "2nd inversion")
+
+        (let input-buffer-size 128)
+        (let midi (alloc 8))
+        (let event (alloc 8))
+
+        ; Seed random number generator
+        (srand (time 0))
+
+        (if (!= (Pm_Initialize) 0)
+            (do
+                (printf "Failed to initialize PortMidi\n")
+                (return 1)
+            (do)))
+
+        (let device-id (find-midi-input-device))
+        (if (== device-id -1)
+            (do
+                (printf "No MIDI input device found\n")
+                (return 1)
+            (do)))
+
+        (if (!= (Pm_OpenInput midi device-id 0 input-buffer-size 0 0) 0)
+            (do
+                (printf "Failed to open MIDI input\n")
+                (return 1)
+            (do)))
+
+        (while 1
+            (printf "Press Enter to generate a random chord...\n")
+            (fgets (cast char* (alloc 8)) 8 (c-const stdin))
+
+            (let result (alloc 32))
+            (printf
+                "Play this chord: %s\n\n"
+                    (cast char*
+                        (gen-chord chords num-chords inversions num-inversions result)))
+
+            (read-chord midi event))))
