@@ -89,8 +89,7 @@
 
 (fn identify-chord (notes count note-names result)
     (if (!= count 3)
-        (return 0)
-    (do))
+        (return 0))
 
     ; Extract pitch classes
     (let p0 (% (get notes 0) 12))
@@ -98,14 +97,13 @@
     (let p2 (% (get notes 16) 12))
 
     ; Sort 3 pitch classes (comparison network)
-    (if (> p0 p1) (do (let t p0) (set! p0 p1) (set! p1 t)) (do))
-    (if (> p1 p2) (do (let t p1) (set! p1 p2) (set! p2 t)) (do))
-    (if (> p0 p1) (do (let t p0) (set! p0 p1) (set! p1 t)) (do))
+    (if (> p0 p1) (do (let t p0) (set! p0 p1) (set! p1 t)))
+    (if (> p1 p2) (do (let t p1) (set! p1 p2) (set! p2 t)))
+    (if (> p0 p1) (do (let t p0) (set! p0 p1) (set! p1 t)))
 
     ; Reject duplicate pitch classes (same note in multiple octaves)
     (if (|| (== p0 p1) (== p1 p2))
-        (return 0)
-    (do))
+        (return 0))
 
     (let i1 (- p1 p0))
     (let i2 (- p2 p1))
@@ -115,21 +113,20 @@
     (let chord-type-id 0)  ; 1=maj, 2=min, 3=dim
 
     ; Major: i1,i2 = (4,3) (3,5) (5,4) — root is p0, p2, p1 respectively
-    (if (&& (== i1 4) (== i2 3)) (do (set! root-pc p0) (set! chord-type-str "maj") (set! chord-type-id 1)) (do))
-    (if (&& (== i1 3) (== i2 5)) (do (set! root-pc p2) (set! chord-type-str "maj") (set! chord-type-id 1)) (do))
-    (if (&& (== i1 5) (== i2 4)) (do (set! root-pc p1) (set! chord-type-str "maj") (set! chord-type-id 1)) (do))
+    (if (&& (== i1 4) (== i2 3)) (do (set! root-pc p0) (set! chord-type-str "maj") (set! chord-type-id 1)))
+    (if (&& (== i1 3) (== i2 5)) (do (set! root-pc p2) (set! chord-type-str "maj") (set! chord-type-id 1)))
+    (if (&& (== i1 5) (== i2 4)) (do (set! root-pc p1) (set! chord-type-str "maj") (set! chord-type-id 1)))
     ; Minor: i1,i2 = (3,4) (4,5) (5,3)
-    (if (&& (== i1 3) (== i2 4)) (do (set! root-pc p0) (set! chord-type-str "m")   (set! chord-type-id 2)) (do))
-    (if (&& (== i1 4) (== i2 5)) (do (set! root-pc p2) (set! chord-type-str "m")   (set! chord-type-id 2)) (do))
-    (if (&& (== i1 5) (== i2 3)) (do (set! root-pc p1) (set! chord-type-str "m")   (set! chord-type-id 2)) (do))
+    (if (&& (== i1 3) (== i2 4)) (do (set! root-pc p0) (set! chord-type-str "m")   (set! chord-type-id 2)))
+    (if (&& (== i1 4) (== i2 5)) (do (set! root-pc p2) (set! chord-type-str "m")   (set! chord-type-id 2)))
+    (if (&& (== i1 5) (== i2 3)) (do (set! root-pc p1) (set! chord-type-str "m")   (set! chord-type-id 2)))
     ; Diminished: i1,i2 = (3,3) (3,6) (6,3)
-    (if (&& (== i1 3) (== i2 3)) (do (set! root-pc p0) (set! chord-type-str "dim") (set! chord-type-id 3)) (do))
-    (if (&& (== i1 3) (== i2 6)) (do (set! root-pc p2) (set! chord-type-str "dim") (set! chord-type-id 3)) (do))
-    (if (&& (== i1 6) (== i2 3)) (do (set! root-pc p1) (set! chord-type-str "dim") (set! chord-type-id 3)) (do))
+    (if (&& (== i1 3) (== i2 3)) (do (set! root-pc p0) (set! chord-type-str "dim") (set! chord-type-id 3)))
+    (if (&& (== i1 3) (== i2 6)) (do (set! root-pc p2) (set! chord-type-str "dim") (set! chord-type-id 3)))
+    (if (&& (== i1 6) (== i2 3)) (do (set! root-pc p1) (set! chord-type-str "dim") (set! chord-type-id 3)))
 
     (if (== chord-type-id 0)
-        (return 0)
-    (do))
+        (return 0))
 
     ; Compute 3rd and 5th pitch classes from root
     (let third-interval (if (== chord-type-id 1) 4 3))  ; maj=4, min/dim=3
@@ -141,14 +138,13 @@
     (let lowest (get notes 0))
     (for k 1 to count
         (if (< (get notes (* k 8)) lowest)
-            (set! lowest (get notes (* k 8)))
-        (do)))
+            (set! lowest (get notes (* k 8)))))
     (let lowest-pc (% lowest 12))
 
     ; Determine inversion from lowest note's pitch class
     (let inversion "root")
-    (if (== lowest-pc third-pc) (set! inversion "1st inversion") (do))
-    (if (== lowest-pc fifth-pc) (set! inversion "2nd inversion") (do))
+    (if (== lowest-pc third-pc) (set! inversion "1st inversion"))
+    (if (== lowest-pc fifth-pc) (set! inversion "2nd inversion"))
 
     (let root-name (get note-names (* root-pc 8)))
     (sprintf result "%s%s %s" (cast char* root-name) (cast char* chord-type-str) (cast char* inversion))
@@ -161,10 +157,8 @@
                 (let info (Pm_GetDeviceInfo (cast int i)))
                 (let is-output (get info 28 4))
                 (if (== is-output 0)
-                    (return i)
-                (do)))
-            (return -1))
-    (do))
+                    (return i)))
+            (return -1)))
     (with-arena
         (printf "MIDI input devices:\n")
         (for i 0 to (Pm_CountDevices)
@@ -172,8 +166,7 @@
             (let name (cast char* (get info 16)))
             (let is-output (get info 28 4))
             (if (== is-output 0)
-                (printf "  %d: \x1b[96m%s\x1b[0m\n" (cast int i) (cast char* name))
-            (do)))
+                (printf "  %d: \x1b[96m%s\x1b[0m\n" (cast int i) (cast char* name))))
         (printf "Enter device ID: ")
         (let buf (alloc 16))
         (fgets (cast char* buf) 16 (c-const stdin))
@@ -197,17 +190,13 @@
                             (let nc (get note-count 0))
                             (copy-notes active-notes last-notes nc)
                             (set! last-count 0 nc)
-                            (if debug (print-notes active-notes nc) (do)))
-                    (do))
+                            (if debug (print-notes active-notes nc))))
                     (if (|| (== status 0x80) (&& (== status 0x90) (== velocity 0)))
                         (do
                             (note-remove active-notes note-count note)
-                            (if debug (print-notes active-notes (get note-count 0)) (do))
+                            (if debug (print-notes active-notes (get note-count 0)))
                             (if (&& started (== (get note-count 0) 0))
-                                (return 0)
-                            (do)))
-                    (do)))
-            (do)))
+                                (return 0)))))))
         (Pt_Sleep 10)))
 
 (fn main (argc argv)
@@ -222,16 +211,13 @@
             (let arg (get argv (* i 8)))
             (if (|| (== (strcmp (cast char* arg) "-d") 0)
                     (== (strcmp (cast char* arg) "--debug") 0))
-                (set! debug 1)
-            (do))
+                (set! debug 1))
             (if (|| (== (strcmp (cast char* arg) "-s") 0)
                     (== (strcmp (cast char* arg) "--select-device") 0))
-                (set! select-device 1)
-            (do))
+                (set! select-device 1))
             (if (|| (== (strcmp (cast char* arg) "-h") 0)
                     (== (strcmp (cast char* arg) "--help") 0))
-                (set! help 1)
-            (do)))
+                (set! help 1)))
 
         (if help
             (do
@@ -241,8 +227,8 @@
                 (printf "  -s, --select-device   List MIDI input devices and choose one interactively\n")
                 (printf "  -d, --debug           Print raw MIDI note numbers on each key event\n")
                 (printf "  -h, --help            Show this help message\n")
-                (return 0))
-        (do))
+                (return 0)))
+
         (let-chords note-names "C" "C♯" "D" "E♭" "E" "F" "F♯" "G" "A♭" "A" "B♭" "B")
 
         ; Store chord names as pointers in an 8-byte-per-slot chords array
@@ -271,21 +257,18 @@
         (if (!= (Pm_Initialize) 0)
             (do
                 (printf "Failed to initialize PortMidi\n")
-                (return 1)
-            (do)))
+                (return 1)))
 
         (let device-id (find-midi-input-device select-device))
         (if (== device-id -1)
             (do
                 (printf "No MIDI input device found\n")
-                (return 1)
-            (do)))
+                (return 1)))
 
         (if (!= (Pm_OpenInput midi device-id 0 input-buffer-size 0 0) 0)
             (do
                 (printf "Failed to open MIDI input\n")
-                (return 1)
-            (do)))
+                (return 1)))
 
         (while 1
             (with-arena-checkpoint
