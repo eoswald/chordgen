@@ -168,10 +168,18 @@ static inline ANCHOR_PURE AnchorVal anchor_not(AnchorVal a)              { retur
 #include <porttime.h>
 #include <stdio.h>
 #include <time.h>
+#include <windows.h>
+#include <io.h>
+#include <stdlib.h>
 AnchorVal string_gt_symbol(AnchorVal s);
 AnchorVal gen_chord(AnchorVal chords, AnchorVal num_chords, AnchorVal inversions, AnchorVal num_inversions, AnchorVal result);
-AnchorVal find_midi_input_device(void);
-AnchorVal read_chord(AnchorVal midi, AnchorVal buf);
+AnchorVal copy_notes(AnchorVal src, AnchorVal dst, AnchorVal count);
+AnchorVal note_add(AnchorVal notes, AnchorVal note_count, AnchorVal note);
+AnchorVal note_remove(AnchorVal notes, AnchorVal note_count, AnchorVal note);
+AnchorVal print_notes(AnchorVal notes, AnchorVal count);
+AnchorVal identify_chord(AnchorVal notes, AnchorVal count, AnchorVal note_names, AnchorVal result);
+AnchorVal find_midi_input_device(AnchorVal select);
+AnchorVal read_chord(AnchorVal midi, AnchorVal buf, AnchorVal active_notes, AnchorVal note_count, AnchorVal last_notes, AnchorVal last_count, AnchorVal debug);
 
 
 AnchorVal string_gt_symbol(AnchorVal s) {
@@ -205,72 +213,337 @@ AnchorVal gen_chord(AnchorVal chords, AnchorVal num_chords, AnchorVal inversions
     return result;
 }
 
-AnchorVal find_midi_input_device(void) {
-    char _anc_arena_buf[ANCHOR_DEFAULT_ARENA_CAP];
-    _AnchorArena _anc_arena = {_anc_arena_buf, ANCHOR_DEFAULT_ARENA_CAP, 0, 0, _anchor_arena_top};
-    _anchor_arena_top = &_anc_arena;
+AnchorVal copy_notes(AnchorVal src, AnchorVal dst, AnchorVal count) {
     {
         AnchorVal i = anchor_int(0);
-        int _anc_t5_raw;
-        AnchorVal _anc_t5;
-        _anc_t5_raw = Pm_CountDevices();
-        _anc_t5 = anchor_int((intptr_t)_anc_t5_raw);
-        while (_ANCH_IVAL(anchor_lt(i, _anc_t5))) {
-            const void* _anc_t6_raw = Pm_GetDeviceInfo((int)_ANCH_IVAL(i));
-            AnchorVal _anc_t6 = anchor_ext((void*)_anc_t6_raw);
-            AnchorVal info = _anc_t6;
-            AnchorVal _anc_t7 = 0;
-            __builtin_memcpy(&_anc_t7, (char*)_ANCH_HPTR(info) + _ANCH_IVAL(anchor_int(16)), 8);
-            AnchorVal name = anchor_ext((char*)_anch_ptr(_anc_t7));
-            AnchorVal _anc_t8 = 0;
-            __builtin_memcpy(&_anc_t8, (char*)_ANCH_HPTR(info) + _ANCH_IVAL(anchor_int(28)), 4);
-            AnchorVal is_output = _anc_t8;
-            printf("Device %d: %s is-output=%d\n", (int)_ANCH_IVAL(i), ((char*)_anch_ptr(name)), (int)_ANCH_IVAL(is_output));
-            if (_ANCH_IVAL((AnchorVal)(!!info && !!anchor_eq(is_output, anchor_int(0))))) {
-                _anchor_arena_top = _anc_arena.prev;
-                return i;
-            }
+        while (_ANCH_IVAL(anchor_lt(i, count))) {
+            AnchorVal _anc_t5 = 0;
+            __builtin_memcpy(&_anc_t5, (char*)_ANCH_HPTR(src) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
+            { AnchorVal _anc_t6 = _anc_t5;
+              __builtin_memcpy((char*)_ANCH_HPTR(dst) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), &_anc_t6, sizeof(AnchorVal)); }
+            ANCHOR_NIL;
             i = anchor_add(i, anchor_int(1));
-            _anc_t5_raw = Pm_CountDevices();
-            _anc_t5 = anchor_int((intptr_t)_anc_t5_raw);
         }
     }
-    _anchor_arena_top = _anc_arena.prev;
-    return anchor_int(-1);
+    return anchor_int(0);
 }
 
-AnchorVal read_chord(AnchorVal midi, AnchorVal buf) {
-    char _anc_arena_buf[ANCHOR_DEFAULT_ARENA_CAP];
-    _AnchorArena _anc_arena = {_anc_arena_buf, ANCHOR_DEFAULT_ARENA_CAP, 0, 0, _anchor_arena_top};
-    _anchor_arena_top = &_anc_arena;
+AnchorVal note_add(AnchorVal notes, AnchorVal note_count, AnchorVal note) {
+    AnchorVal _anc_t7 = 0;
+    __builtin_memcpy(&_anc_t7, (char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), 8);
+    AnchorVal count = _anc_t7;
+    {
+        AnchorVal i = anchor_int(0);
+        while (_ANCH_IVAL(anchor_lt(i, count))) {
+            AnchorVal _anc_t8 = 0;
+            __builtin_memcpy(&_anc_t8, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
+            if (_ANCH_IVAL(anchor_eq(_anc_t8, note))) {
+                return anchor_int(0);
+            }
+            i = anchor_add(i, anchor_int(1));
+        }
+    }
+    { AnchorVal _anc_t9 = note;
+      __builtin_memcpy((char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(count, anchor_int(8))), &_anc_t9, sizeof(AnchorVal)); }
+    ANCHOR_NIL;
+    { AnchorVal _anc_t10 = anchor_add(count, anchor_int(1));
+      __builtin_memcpy((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t10, sizeof(AnchorVal)); }
+    ANCHOR_NIL;
+    return anchor_int(0);
+}
+
+AnchorVal note_remove(AnchorVal notes, AnchorVal note_count, AnchorVal note) {
+    AnchorVal _anc_t11 = 0;
+    __builtin_memcpy(&_anc_t11, (char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), 8);
+    AnchorVal count = _anc_t11;
+    {
+        AnchorVal i = anchor_int(0);
+        while (_ANCH_IVAL(anchor_lt(i, count))) {
+            AnchorVal _anc_t12 = 0;
+            __builtin_memcpy(&_anc_t12, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
+            if (_ANCH_IVAL(anchor_eq(_anc_t12, note))) {
+                {
+                    AnchorVal j = i;
+                    while (_ANCH_IVAL(anchor_lt(j, anchor_sub(count, anchor_int(1))))) {
+                        AnchorVal _anc_t13 = 0;
+                        __builtin_memcpy(&_anc_t13, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(anchor_add(j, anchor_int(1)), anchor_int(8))), 8);
+                        { AnchorVal _anc_t14 = _anc_t13;
+                          __builtin_memcpy((char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(j, anchor_int(8))), &_anc_t14, sizeof(AnchorVal)); }
+                        ANCHOR_NIL;
+                        j = anchor_add(j, anchor_int(1));
+                    }
+                }
+                { AnchorVal _anc_t15 = anchor_sub(count, anchor_int(1));
+                  __builtin_memcpy((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t15, sizeof(AnchorVal)); }
+                ANCHOR_NIL;
+                return anchor_int(0);
+            }
+            i = anchor_add(i, anchor_int(1));
+        }
+    }
+    return anchor_int(0);
+}
+
+AnchorVal print_notes(AnchorVal notes, AnchorVal count) {
+    printf("Notes (%d):", (int)_ANCH_IVAL(count));
+    {
+        AnchorVal i = anchor_int(0);
+        while (_ANCH_IVAL(anchor_lt(i, count))) {
+            AnchorVal _anc_t16 = 0;
+            __builtin_memcpy(&_anc_t16, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
+            printf(" %d", (int)_ANCH_IVAL(_anc_t16));
+            i = anchor_add(i, anchor_int(1));
+        }
+    }
+    printf("\n");
+    return anchor_int(0);
+}
+
+AnchorVal identify_chord(AnchorVal notes, AnchorVal count, AnchorVal note_names, AnchorVal result) {
+    if (_ANCH_IVAL(anchor_ne(count, anchor_int(3)))) {
+        return anchor_int(0);
+    }
+    AnchorVal _anc_t17 = 0;
+    __builtin_memcpy(&_anc_t17, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_int(0)), 8);
+    AnchorVal p0 = anchor_mod(_anc_t17, anchor_int(12));
+    AnchorVal _anc_t18 = 0;
+    __builtin_memcpy(&_anc_t18, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_int(8)), 8);
+    AnchorVal p1 = anchor_mod(_anc_t18, anchor_int(12));
+    AnchorVal _anc_t19 = 0;
+    __builtin_memcpy(&_anc_t19, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_int(16)), 8);
+    AnchorVal p2 = anchor_mod(_anc_t19, anchor_int(12));
+    if (_ANCH_IVAL(anchor_gt(p0, p1))) {
+        AnchorVal t = p0;
+        p0 = p1;
+        p1 = t;
+    }
+    if (_ANCH_IVAL(anchor_gt(p1, p2))) {
+        AnchorVal t = p1;
+        p1 = p2;
+        p2 = t;
+    }
+    if (_ANCH_IVAL(anchor_gt(p0, p1))) {
+        AnchorVal t = p0;
+        p0 = p1;
+        p1 = t;
+    }
+    if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(p0, p1) || !!anchor_eq(p1, p2)))) {
+        return anchor_int(0);
+    }
+    AnchorVal i1 = anchor_sub(p1, p0);
+    AnchorVal i2 = anchor_sub(p2, p1);
+    AnchorVal root_pc = anchor_int(0);
+    AnchorVal chord_type_str = anchor_int(0);
+    AnchorVal chord_type_id = anchor_int(0);
+    if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(i1, anchor_int(4)) && !!anchor_eq(i2, anchor_int(3))))) {
+        root_pc = p0;
+        chord_type_str = anchor_ext((void*)"maj");
+        chord_type_id = anchor_int(1);
+    }
+    if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(i1, anchor_int(3)) && !!anchor_eq(i2, anchor_int(5))))) {
+        root_pc = p2;
+        chord_type_str = anchor_ext((void*)"maj");
+        chord_type_id = anchor_int(1);
+    }
+    if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(i1, anchor_int(5)) && !!anchor_eq(i2, anchor_int(4))))) {
+        root_pc = p1;
+        chord_type_str = anchor_ext((void*)"maj");
+        chord_type_id = anchor_int(1);
+    }
+    if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(i1, anchor_int(3)) && !!anchor_eq(i2, anchor_int(4))))) {
+        root_pc = p0;
+        chord_type_str = anchor_ext((void*)"m");
+        chord_type_id = anchor_int(2);
+    }
+    if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(i1, anchor_int(4)) && !!anchor_eq(i2, anchor_int(5))))) {
+        root_pc = p2;
+        chord_type_str = anchor_ext((void*)"m");
+        chord_type_id = anchor_int(2);
+    }
+    if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(i1, anchor_int(5)) && !!anchor_eq(i2, anchor_int(3))))) {
+        root_pc = p1;
+        chord_type_str = anchor_ext((void*)"m");
+        chord_type_id = anchor_int(2);
+    }
+    if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(i1, anchor_int(3)) && !!anchor_eq(i2, anchor_int(3))))) {
+        root_pc = p0;
+        chord_type_str = anchor_ext((void*)"dim");
+        chord_type_id = anchor_int(3);
+    }
+    if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(i1, anchor_int(3)) && !!anchor_eq(i2, anchor_int(6))))) {
+        root_pc = p2;
+        chord_type_str = anchor_ext((void*)"dim");
+        chord_type_id = anchor_int(3);
+    }
+    if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(i1, anchor_int(6)) && !!anchor_eq(i2, anchor_int(3))))) {
+        root_pc = p1;
+        chord_type_str = anchor_ext((void*)"dim");
+        chord_type_id = anchor_int(3);
+    }
+    if (_ANCH_IVAL(anchor_eq(chord_type_id, anchor_int(0)))) {
+        return anchor_int(0);
+    }
+    AnchorVal _anc_t20;
+    if (_ANCH_IVAL(anchor_eq(chord_type_id, anchor_int(1)))) {
+        _anc_t20 = anchor_int(4);
+    } else {
+        _anc_t20 = anchor_int(3);
+    }
+    AnchorVal third_interval = _anc_t20;
+    AnchorVal _anc_t21;
+    if (_ANCH_IVAL(anchor_eq(chord_type_id, anchor_int(3)))) {
+        _anc_t21 = anchor_int(6);
+    } else {
+        _anc_t21 = anchor_int(7);
+    }
+    AnchorVal fifth_interval = _anc_t21;
+    AnchorVal third_pc = anchor_mod(anchor_add(root_pc, third_interval), anchor_int(12));
+    AnchorVal fifth_pc = anchor_mod(anchor_add(root_pc, fifth_interval), anchor_int(12));
+    AnchorVal _anc_t22 = 0;
+    __builtin_memcpy(&_anc_t22, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_int(0)), 8);
+    AnchorVal lowest = _anc_t22;
+    {
+        AnchorVal k = anchor_int(1);
+        while (_ANCH_IVAL(anchor_lt(k, count))) {
+            AnchorVal _anc_t23 = 0;
+            __builtin_memcpy(&_anc_t23, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(k, anchor_int(8))), 8);
+            if (_ANCH_IVAL(anchor_lt(_anc_t23, lowest))) {
+                AnchorVal _anc_t24 = 0;
+                __builtin_memcpy(&_anc_t24, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(k, anchor_int(8))), 8);
+                lowest = _anc_t24;
+            }
+            k = anchor_add(k, anchor_int(1));
+        }
+    }
+    AnchorVal lowest_pc = anchor_mod(lowest, anchor_int(12));
+    AnchorVal inversion = anchor_ext((void*)"root");
+    if (_ANCH_IVAL(anchor_eq(lowest_pc, third_pc))) {
+        inversion = anchor_ext((void*)"1st inversion");
+    }
+    if (_ANCH_IVAL(anchor_eq(lowest_pc, fifth_pc))) {
+        inversion = anchor_ext((void*)"2nd inversion");
+    }
+    AnchorVal _anc_t25 = 0;
+    __builtin_memcpy(&_anc_t25, (char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_mul(root_pc, anchor_int(8))), 8);
+    AnchorVal root_name = _anc_t25;
+    sprintf(((char*)_anch_ptr(result)), "%s%s %s", ((char*)_anch_ptr(root_name)), ((char*)_anch_ptr(chord_type_str)), ((char*)_anch_ptr(inversion)));
+    return result;
+}
+
+AnchorVal find_midi_input_device(AnchorVal select) {
+    if (_ANCH_IVAL(anchor_not(select))) {
+        {
+            AnchorVal i = anchor_int(0);
+            int _anc_t26_raw;
+            AnchorVal _anc_t26;
+            _anc_t26_raw = Pm_CountDevices();
+            _anc_t26 = anchor_int((intptr_t)_anc_t26_raw);
+            while (_ANCH_IVAL(anchor_lt(i, _anc_t26))) {
+                const void* _anc_t27_raw = Pm_GetDeviceInfo((int)_ANCH_IVAL(i));
+                AnchorVal _anc_t27 = anchor_ext((void*)_anc_t27_raw);
+                AnchorVal info = _anc_t27;
+                AnchorVal _anc_t28 = 0;
+                __builtin_memcpy(&_anc_t28, (char*)_ANCH_HPTR(info) + _ANCH_IVAL(anchor_int(28)), 4);
+                AnchorVal is_output = _anc_t28;
+                if (_ANCH_IVAL(anchor_eq(is_output, anchor_int(0)))) {
+                    return i;
+                }
+                i = anchor_add(i, anchor_int(1));
+                _anc_t26_raw = Pm_CountDevices();
+                _anc_t26 = anchor_int((intptr_t)_anc_t26_raw);
+            }
+        }
+        return anchor_int(-1);
+    }
+    {
+        char _anc_arena__anc_t29_buf[ANCHOR_DEFAULT_ARENA_CAP];
+        _AnchorArena _anc_arena__anc_t29 = {_anc_arena__anc_t29_buf, ANCHOR_DEFAULT_ARENA_CAP, 0, 0, _anchor_arena_top};
+        _anchor_arena_top = &_anc_arena__anc_t29;
+        printf("MIDI input devices:\n");
+        {
+            AnchorVal i = anchor_int(0);
+            int _anc_t30_raw;
+            AnchorVal _anc_t30;
+            _anc_t30_raw = Pm_CountDevices();
+            _anc_t30 = anchor_int((intptr_t)_anc_t30_raw);
+            while (_ANCH_IVAL(anchor_lt(i, _anc_t30))) {
+                const void* _anc_t31_raw = Pm_GetDeviceInfo((int)_ANCH_IVAL(i));
+                AnchorVal _anc_t31 = anchor_ext((void*)_anc_t31_raw);
+                AnchorVal info = _anc_t31;
+                AnchorVal _anc_t32 = 0;
+                __builtin_memcpy(&_anc_t32, (char*)_ANCH_HPTR(info) + _ANCH_IVAL(anchor_int(16)), 8);
+                AnchorVal name = anchor_ext((char*)_anch_ptr(_anc_t32));
+                AnchorVal _anc_t33 = 0;
+                __builtin_memcpy(&_anc_t33, (char*)_ANCH_HPTR(info) + _ANCH_IVAL(anchor_int(28)), 4);
+                AnchorVal is_output = _anc_t33;
+                if (_ANCH_IVAL(anchor_eq(is_output, anchor_int(0)))) {
+                    printf("  %d: \x1B[96m%s\x1B[0m\n", (int)_ANCH_IVAL(i), ((char*)_anch_ptr(name)));
+                }
+                i = anchor_add(i, anchor_int(1));
+                _anc_t30_raw = Pm_CountDevices();
+                _anc_t30 = anchor_int((intptr_t)_anc_t30_raw);
+            }
+        }
+        printf("Enter device ID: ");
+        AnchorVal buf = anchor_alloc(16);
+        fgets(((char*)_anch_ptr(buf)), 16, ((void*)_anch_ptr(anchor_int((intptr_t)(stdin)))));
+        int _anc_t34_raw = atoi(((char*)_anch_ptr(buf)));
+        AnchorVal _anc_t34 = anchor_int((intptr_t)_anc_t34_raw);
+        _anchor_arena_top = _anc_arena__anc_t29.prev;
+        return _anc_t34;
+        _anchor_arena_top = _anc_arena__anc_t29.prev;
+    }
+    return anchor_int(0);
+}
+
+AnchorVal read_chord(AnchorVal midi, AnchorVal buf, AnchorVal active_notes, AnchorVal note_count, AnchorVal last_notes, AnchorVal last_count, AnchorVal debug) {
+    AnchorVal started = anchor_int(0);
     while (_ANCH_IVAL(anchor_int(1))) {
-        AnchorVal _anc_t9 = 0;
-        __builtin_memcpy(&_anc_t9, (char*)_ANCH_HPTR(midi) + _ANCH_IVAL(anchor_int(0)), 8);
-        int _anc_t10_raw = Pm_Poll(((void*)_anch_ptr(_anc_t9)));
-        AnchorVal _anc_t10 = anchor_int((intptr_t)_anc_t10_raw);
-        if (_ANCH_IVAL(anchor_eq(_anc_t10, anchor_int(1)))) {
-            AnchorVal _anc_t11 = 0;
-            __builtin_memcpy(&_anc_t11, (char*)_ANCH_HPTR(midi) + _ANCH_IVAL(anchor_int(0)), 8);
-            int _anc_t12_raw = Pm_Read(((void*)_anch_ptr(_anc_t11)), ((void*)_anch_ptr(buf)), 32);
-            AnchorVal _anc_t12 = anchor_int((intptr_t)_anc_t12_raw);
-            AnchorVal count = _anc_t12;
+        AnchorVal _anc_t35 = 0;
+        __builtin_memcpy(&_anc_t35, (char*)_ANCH_HPTR(midi) + _ANCH_IVAL(anchor_int(0)), 8);
+        int _anc_t36_raw = Pm_Poll(((void*)_anch_ptr(_anc_t35)));
+        AnchorVal _anc_t36 = anchor_int((intptr_t)_anc_t36_raw);
+        if (_ANCH_IVAL(anchor_eq(_anc_t36, anchor_int(1)))) {
+            AnchorVal _anc_t37 = 0;
+            __builtin_memcpy(&_anc_t37, (char*)_ANCH_HPTR(midi) + _ANCH_IVAL(anchor_int(0)), 8);
+            int _anc_t38_raw = Pm_Read(((void*)_anch_ptr(_anc_t37)), ((void*)_anch_ptr(buf)), 32);
+            AnchorVal _anc_t38 = anchor_int((intptr_t)_anc_t38_raw);
+            AnchorVal count = _anc_t38;
             {
                 AnchorVal i = anchor_int(0);
                 while (_ANCH_IVAL(anchor_lt(i, count))) {
-                    AnchorVal _anc_t13 = 0;
-                    __builtin_memcpy(&_anc_t13, (char*)_ANCH_HPTR(buf) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 4);
-                    AnchorVal message = _anc_t13;
-                    AnchorVal _anc_t14 = 0;
-                    __builtin_memcpy(&_anc_t14, (char*)_ANCH_HPTR(buf) + _ANCH_IVAL(anchor_add(anchor_mul(i, anchor_int(8)), anchor_int(4))), 4);
-                    AnchorVal timestamp = _anc_t14;
+                    AnchorVal _anc_t39 = 0;
+                    __builtin_memcpy(&_anc_t39, (char*)_ANCH_HPTR(buf) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 4);
+                    AnchorVal message = _anc_t39;
                     AnchorVal status = anchor_band(message, anchor_int(255));
                     AnchorVal note = anchor_band(anchor_rshift(message, anchor_int(8)), anchor_int(255));
                     AnchorVal velocity = anchor_band(anchor_rshift(message, anchor_int(16)), anchor_int(255));
-                    printf("Received MIDI event: status=%d, note=%d, velocity=%d at timestamp: %d\n", (int)_ANCH_IVAL(status), (int)_ANCH_IVAL(note), (int)_ANCH_IVAL(velocity), (int)_ANCH_IVAL(timestamp));
-                    if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(status, anchor_int(144)) && !!anchor_eq(note, anchor_int(60))))) {
-                        printf("Middle C pressed!\n");
-                        _anchor_arena_top = _anc_arena.prev;
-                        return anchor_int(-1);
+                    if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(status, anchor_int(144)) && !!anchor_ne(velocity, anchor_int(0))))) {
+                        note_add(active_notes, note_count, note);
+                        started = anchor_int(1);
+                        AnchorVal _anc_t40 = 0;
+                        __builtin_memcpy(&_anc_t40, (char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), 8);
+                        AnchorVal nc = _anc_t40;
+                        copy_notes(active_notes, last_notes, nc);
+                        { AnchorVal _anc_t41 = nc;
+                          __builtin_memcpy((char*)_ANCH_HPTR(last_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t41, sizeof(AnchorVal)); }
+                        ANCHOR_NIL;
+                        if (_ANCH_IVAL(debug)) {
+                            print_notes(active_notes, nc);
+                        }
+                    }
+                    if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(status, anchor_int(128)) || !!(AnchorVal)(!!anchor_eq(status, anchor_int(144)) && !!anchor_eq(velocity, anchor_int(0)))))) {
+                        note_remove(active_notes, note_count, note);
+                        if (_ANCH_IVAL(debug)) {
+                            AnchorVal _anc_t42 = 0;
+                            __builtin_memcpy(&_anc_t42, (char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), 8);
+                            print_notes(active_notes, _anc_t42);
+                        }
+                        if (_ANCH_IVAL((AnchorVal)(!!started && ({ AnchorVal _anc_t43 = 0;
+__builtin_memcpy(&_anc_t43, (char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), 8);
+(AnchorVal)!!anchor_eq(_anc_t43, anchor_int(0)); })))) {
+                            return anchor_int(0);
+                        }
                     }
                     i = anchor_add(i, anchor_int(1));
                 }
@@ -278,114 +551,230 @@ AnchorVal read_chord(AnchorVal midi, AnchorVal buf) {
         }
         Pt_Sleep(10);
     }
-    _anchor_arena_top = _anc_arena.prev;
     return anchor_int(0);
 }
 
-int main(void) {
-    char _anc_arena_buf[ANCHOR_DEFAULT_ARENA_CAP];
-    _AnchorArena _anc_arena = {_anc_arena_buf, ANCHOR_DEFAULT_ARENA_CAP, 0, 0, _anchor_arena_top};
-    _anchor_arena_top = &_anc_arena;
-    AnchorVal num_chords = anchor_int(18);
-    AnchorVal chords = anchor_alloc((size_t)_ANCH_IVAL(anchor_mul(num_chords, anchor_int(8))));
-    { AnchorVal _anc_t15 = anchor_ext((void*)"Cmaj");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(0)), &_anc_t15, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t16 = anchor_ext((void*)"Cm");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(8)), &_anc_t16, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t17 = anchor_ext((void*)"Dmaj");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(16)), &_anc_t17, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t18 = anchor_ext((void*)"Dm");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(24)), &_anc_t18, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t19 = anchor_ext((void*)"E♭maj");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(32)), &_anc_t19, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t20 = anchor_ext((void*)"Em");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(40)), &_anc_t20, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t21 = anchor_ext((void*)"Edim");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(48)), &_anc_t21, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t22 = anchor_ext((void*)"Fmaj");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(56)), &_anc_t22, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t23 = anchor_ext((void*)"F♯maj");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(64)), &_anc_t23, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t24 = anchor_ext((void*)"Gmaj");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(72)), &_anc_t24, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t25 = anchor_ext((void*)"Gm");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(80)), &_anc_t25, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t26 = anchor_ext((void*)"Amaj");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(88)), &_anc_t26, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t27 = anchor_ext((void*)"Am");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(96)), &_anc_t27, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t28 = anchor_ext((void*)"Adim");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(104)), &_anc_t28, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t29 = anchor_ext((void*)"B♭maj");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(112)), &_anc_t29, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t30 = anchor_ext((void*)"Bm");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(120)), &_anc_t30, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t31 = anchor_ext((void*)"Bdim");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(128)), &_anc_t31, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t32 = anchor_ext((void*)"C♯m");
-      __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(136)), &_anc_t32, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    AnchorVal num_inversions = anchor_int(3);
-    AnchorVal inversions = anchor_alloc((size_t)_ANCH_IVAL(anchor_mul(anchor_int(3), anchor_int(16))));
-    { AnchorVal _anc_t33 = anchor_ext((void*)"root");
-      __builtin_memcpy((char*)_ANCH_HPTR(inversions) + _ANCH_IVAL(anchor_int(0)), &_anc_t33, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t34 = anchor_ext((void*)"1st inversion");
-      __builtin_memcpy((char*)_ANCH_HPTR(inversions) + _ANCH_IVAL(anchor_int(16)), &_anc_t34, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    { AnchorVal _anc_t35 = anchor_ext((void*)"2nd inversion");
-      __builtin_memcpy((char*)_ANCH_HPTR(inversions) + _ANCH_IVAL(anchor_int(32)), &_anc_t35, sizeof(AnchorVal)); }
-    ANCHOR_NIL;
-    AnchorVal input_buffer_size = anchor_int(128);
-    AnchorVal midi = anchor_alloc(8);
-    AnchorVal event = anchor_alloc(8);
-    long _anc_t36_raw = time((void*)0);
-    AnchorVal _anc_t36 = anchor_int((intptr_t)_anc_t36_raw);
-    srand((unsigned int)_ANCH_IVAL(_anc_t36));
-    int _anc_t37_raw = Pm_Initialize();
-    AnchorVal _anc_t37 = anchor_int((intptr_t)_anc_t37_raw);
-    if (_ANCH_IVAL(anchor_ne(_anc_t37, anchor_int(0)))) {
-        printf("Failed to initialize PortMidi\n");
-        _anchor_arena_top = _anc_arena.prev;
-        return 1;
+int main(int _argc_raw, char** _argv_raw) {
+    AnchorVal argc = anchor_int(_argc_raw);
+    AnchorVal argv = anchor_ext((void*)_argv_raw);
+    {
+        char _anc_arena__anc_t44_buf[ANCHOR_DEFAULT_ARENA_CAP];
+        _AnchorArena _anc_arena__anc_t44 = {_anc_arena__anc_t44_buf, ANCHOR_DEFAULT_ARENA_CAP, 0, 0, _anchor_arena_top};
+        _anchor_arena_top = &_anc_arena__anc_t44;
+        SetConsoleOutputCP(65001);
+        int _anc_t45_raw = _fileno(((void*)_anch_ptr(anchor_int((intptr_t)(stdout)))));
+        AnchorVal _anc_t45 = anchor_int((intptr_t)_anc_t45_raw);
+        _setmode((int)_ANCH_IVAL(_anc_t45), 32768);
+        AnchorVal debug = anchor_int(0);
+        AnchorVal select_device = anchor_int(0);
+        {
+            AnchorVal i = anchor_int(1);
+            while (_ANCH_IVAL(anchor_lt(i, argc))) {
+                AnchorVal _anc_t46 = 0;
+                __builtin_memcpy(&_anc_t46, (char*)_ANCH_HPTR(argv) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
+                AnchorVal arg = _anc_t46;
+                int _anc_t48_raw = strcmp(((char*)_anch_ptr(arg)), "-d");
+                AnchorVal _anc_t48 = anchor_int((intptr_t)_anc_t48_raw);
+                if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(_anc_t48, anchor_int(0)) || ({ int _anc_t47_raw = strcmp(((char*)_anch_ptr(arg)), "--debug");
+AnchorVal _anc_t47 = anchor_int((intptr_t)_anc_t47_raw);
+(AnchorVal)!!anchor_eq(_anc_t47, anchor_int(0)); })))) {
+                    debug = anchor_int(1);
+                }
+                int _anc_t50_raw = strcmp(((char*)_anch_ptr(arg)), "-s");
+                AnchorVal _anc_t50 = anchor_int((intptr_t)_anc_t50_raw);
+                if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(_anc_t50, anchor_int(0)) || ({ int _anc_t49_raw = strcmp(((char*)_anch_ptr(arg)), "--select-device");
+AnchorVal _anc_t49 = anchor_int((intptr_t)_anc_t49_raw);
+(AnchorVal)!!anchor_eq(_anc_t49, anchor_int(0)); })))) {
+                    select_device = anchor_int(1);
+                }
+                i = anchor_add(i, anchor_int(1));
+            }
+        }
+        AnchorVal note_names = anchor_alloc(96);
+        { AnchorVal _anc_t51 = anchor_ext((void*)"C");
+          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(0)), &_anc_t51, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t52 = anchor_ext((void*)"C♯");
+          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(8)), &_anc_t52, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t53 = anchor_ext((void*)"D");
+          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(16)), &_anc_t53, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t54 = anchor_ext((void*)"E♭");
+          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(24)), &_anc_t54, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t55 = anchor_ext((void*)"E");
+          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(32)), &_anc_t55, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t56 = anchor_ext((void*)"F");
+          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(40)), &_anc_t56, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t57 = anchor_ext((void*)"F♯");
+          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(48)), &_anc_t57, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t58 = anchor_ext((void*)"G");
+          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(56)), &_anc_t58, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t59 = anchor_ext((void*)"A♭");
+          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(64)), &_anc_t59, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t60 = anchor_ext((void*)"A");
+          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(72)), &_anc_t60, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t61 = anchor_ext((void*)"B♭");
+          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(80)), &_anc_t61, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t62 = anchor_ext((void*)"B");
+          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(88)), &_anc_t62, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        AnchorVal num_chords = anchor_int(18);
+        AnchorVal chords = anchor_alloc(144);
+        { AnchorVal _anc_t63 = anchor_ext((void*)"Cmaj");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(0)), &_anc_t63, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t64 = anchor_ext((void*)"Cm");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(8)), &_anc_t64, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t65 = anchor_ext((void*)"Dmaj");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(16)), &_anc_t65, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t66 = anchor_ext((void*)"Dm");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(24)), &_anc_t66, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t67 = anchor_ext((void*)"E♭maj");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(32)), &_anc_t67, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t68 = anchor_ext((void*)"Em");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(40)), &_anc_t68, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t69 = anchor_ext((void*)"Edim");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(48)), &_anc_t69, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t70 = anchor_ext((void*)"Fmaj");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(56)), &_anc_t70, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t71 = anchor_ext((void*)"F♯maj");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(64)), &_anc_t71, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t72 = anchor_ext((void*)"Gmaj");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(72)), &_anc_t72, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t73 = anchor_ext((void*)"Gm");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(80)), &_anc_t73, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t74 = anchor_ext((void*)"Amaj");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(88)), &_anc_t74, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t75 = anchor_ext((void*)"Am");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(96)), &_anc_t75, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t76 = anchor_ext((void*)"Adim");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(104)), &_anc_t76, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t77 = anchor_ext((void*)"B♭maj");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(112)), &_anc_t77, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t78 = anchor_ext((void*)"Bm");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(120)), &_anc_t78, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t79 = anchor_ext((void*)"Bdim");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(128)), &_anc_t79, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t80 = anchor_ext((void*)"C♯m");
+          __builtin_memcpy((char*)_ANCH_HPTR(chords) + _ANCH_IVAL(anchor_int(136)), &_anc_t80, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        AnchorVal num_inversions = anchor_int(3);
+        AnchorVal inversions = anchor_alloc((size_t)_ANCH_IVAL(anchor_mul(anchor_int(3), anchor_int(16))));
+        { AnchorVal _anc_t81 = anchor_ext((void*)"root");
+          __builtin_memcpy((char*)_ANCH_HPTR(inversions) + _ANCH_IVAL(anchor_int(0)), &_anc_t81, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t82 = anchor_ext((void*)"1st inversion");
+          __builtin_memcpy((char*)_ANCH_HPTR(inversions) + _ANCH_IVAL(anchor_int(16)), &_anc_t82, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        { AnchorVal _anc_t83 = anchor_ext((void*)"2nd inversion");
+          __builtin_memcpy((char*)_ANCH_HPTR(inversions) + _ANCH_IVAL(anchor_int(32)), &_anc_t83, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        AnchorVal input_buffer_size = anchor_int(128);
+        AnchorVal midi = anchor_alloc(8);
+        AnchorVal event = anchor_alloc(256);
+        AnchorVal active_notes = anchor_alloc((size_t)_ANCH_IVAL(anchor_mul(anchor_int(16), anchor_int(8))));
+        AnchorVal note_count = anchor_alloc(8);
+        { AnchorVal _anc_t84 = anchor_int(0);
+          __builtin_memcpy((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t84, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        AnchorVal last_notes = anchor_alloc((size_t)_ANCH_IVAL(anchor_mul(anchor_int(16), anchor_int(8))));
+        AnchorVal last_count = anchor_alloc(8);
+        { AnchorVal _anc_t85 = anchor_int(0);
+          __builtin_memcpy((char*)_ANCH_HPTR(last_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t85, sizeof(AnchorVal)); }
+        ANCHOR_NIL;
+        long _anc_t86_raw = time((void*)0);
+        AnchorVal _anc_t86 = anchor_int((intptr_t)_anc_t86_raw);
+        srand((unsigned int)_ANCH_IVAL(_anc_t86));
+        int _anc_t87_raw = Pm_Initialize();
+        AnchorVal _anc_t87 = anchor_int((intptr_t)_anc_t87_raw);
+        if (_ANCH_IVAL(anchor_ne(_anc_t87, anchor_int(0)))) {
+            printf("Failed to initialize PortMidi\n");
+            _anchor_arena_top = _anc_arena__anc_t44.prev;
+            return 1;
+        }
+        AnchorVal device_id = find_midi_input_device(select_device);
+        if (_ANCH_IVAL(anchor_eq(device_id, anchor_int(-1)))) {
+            printf("No MIDI input device found\n");
+            _anchor_arena_top = _anc_arena__anc_t44.prev;
+            return 1;
+        }
+        int _anc_t88_raw = Pm_OpenInput(((void*)_anch_ptr(midi)), (int)_ANCH_IVAL(device_id), 0, (int)_ANCH_IVAL(input_buffer_size), (void*)0, 0);
+        AnchorVal _anc_t88 = anchor_int((intptr_t)_anc_t88_raw);
+        if (_ANCH_IVAL(anchor_ne(_anc_t88, anchor_int(0)))) {
+            printf("Failed to open MIDI input\n");
+            _anchor_arena_top = _anc_arena__anc_t44.prev;
+            return 1;
+        }
+        while (_ANCH_IVAL(anchor_int(1))) {
+            {
+                size_t _anc_cp__anc_t89_used = _anchor_arena_top->used;
+                size_t _anc_cp__anc_t89_prev = _anchor_arena_top->checkpoint;
+                _anchor_arena_top->checkpoint = _anchor_arena_top->used;
+                AnchorVal result = anchor_alloc(32);
+                printf("\nPlay this chord: \x1B[96m%s\x1B[0m\n\n", ((char*)_anch_ptr(gen_chord(chords, num_chords, inversions, num_inversions, result))));
+                AnchorVal correct = anchor_int(0);
+                while (_ANCH_IVAL(anchor_eq(correct, anchor_int(0)))) {
+                    {
+                        size_t _anc_cp__anc_t90_used = _anchor_arena_top->used;
+                        size_t _anc_cp__anc_t90_prev = _anchor_arena_top->checkpoint;
+                        _anchor_arena_top->checkpoint = _anchor_arena_top->used;
+                        { AnchorVal _anc_t91 = anchor_int(0);
+                          __builtin_memcpy((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t91, sizeof(AnchorVal)); }
+                        ANCHOR_NIL;
+                        { AnchorVal _anc_t92 = anchor_int(0);
+                          __builtin_memcpy((char*)_ANCH_HPTR(last_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t92, sizeof(AnchorVal)); }
+                        ANCHOR_NIL;
+                        read_chord(midi, event, active_notes, note_count, last_notes, last_count, debug);
+                        AnchorVal id_result = anchor_alloc(32);
+                        AnchorVal _anc_t93 = 0;
+                        __builtin_memcpy(&_anc_t93, (char*)_ANCH_HPTR(last_count) + _ANCH_IVAL(anchor_int(0)), 8);
+                        AnchorVal identified = identify_chord(last_notes, _anc_t93, note_names, id_result);
+                        if (_ANCH_IVAL((AnchorVal)(!!identified && ({ int _anc_t94_raw = strcmp(((char*)_anch_ptr(identified)), ((char*)_anch_ptr(result)));
+AnchorVal _anc_t94 = anchor_int((intptr_t)_anc_t94_raw);
+(AnchorVal)!!anchor_eq(_anc_t94, anchor_int(0)); })))) {
+                            printf("\x1B[92mCorrect!\x1B[0m\n");
+                            correct = anchor_int(1);
+                        } else {
+                            if (_ANCH_IVAL(identified)) {
+                                printf("That's \x1B[91m%s\x1B[0m, try again\n", ((char*)_anch_ptr(identified)));
+                            } else {
+                                printf("\x1B[93mUnknown chord\x1B[0m, try again\n");
+                            }
+                        }
+                        _anchor_arena_top->used = _anc_cp__anc_t90_used;
+                        _anchor_arena_top->checkpoint = _anc_cp__anc_t90_prev;
+                    }
+                }
+                _anchor_arena_top->used = _anc_cp__anc_t89_used;
+                _anchor_arena_top->checkpoint = _anc_cp__anc_t89_prev;
+            }
+        }
+        _anchor_arena_top = _anc_arena__anc_t44.prev;
     }
-    AnchorVal device_id = find_midi_input_device();
-    if (_ANCH_IVAL(anchor_eq(device_id, anchor_int(-1)))) {
-        printf("No MIDI input device found\n");
-        _anchor_arena_top = _anc_arena.prev;
-        return 1;
-    }
-    int _anc_t38_raw = Pm_OpenInput(((void*)_anch_ptr(midi)), (int)_ANCH_IVAL(device_id), 0, (int)_ANCH_IVAL(input_buffer_size), (void*)0, 0);
-    AnchorVal _anc_t38 = anchor_int((intptr_t)_anc_t38_raw);
-    if (_ANCH_IVAL(anchor_ne(_anc_t38, anchor_int(0)))) {
-        printf("Failed to open MIDI input\n");
-        _anchor_arena_top = _anc_arena.prev;
-        return 1;
-    }
-    while (_ANCH_IVAL(anchor_int(1))) {
-        printf("Press Enter to generate a random chord...\n");
-        fgets(((char*)_anch_ptr(anchor_alloc(8))), 8, ((void*)_anch_ptr(anchor_int((intptr_t)(stdin)))));
-        AnchorVal result = anchor_alloc(32);
-        printf("Play this chord: %s\n\n", ((char*)_anch_ptr(gen_chord(chords, num_chords, inversions, num_inversions, result))));
-        read_chord(midi, event);
-    }
-    _anchor_arena_top = _anc_arena.prev;
     return 0;
 }
