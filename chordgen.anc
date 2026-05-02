@@ -48,10 +48,9 @@
 (define-syntax parse-arg
     (syntax-rules ()
         [(_ args arg var short long)
-         (do
-            (if (|| (== (strcmp (cast char* arg) short) 0)
-                    (== (strcmp (cast char* arg) long) 0))
-                (set! args Args var 1)))]))
+         (if (|| (== (strcmp (cast char* arg) short) 0)
+                 (== (strcmp (cast char* arg) long) 0))
+             (set! args Args var 1))]))
 
 (fn gen-chord (chords num-chords inversions num-inversions result)
     (let chord-idx (% (rand) num-chords))
