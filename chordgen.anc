@@ -199,6 +199,15 @@
                                 (return 0)))))))
         (Pt_Sleep 10)))
 
+(fn print-help ()
+    (printf "Usage: chordgen [options]\n\n")
+    (printf "MIDI chord trainer. Displays a random chord and waits for you to play it.\n\n")
+    (printf "Options:\n")
+    (printf "  -s, --select-device   List MIDI input devices and choose one interactively\n")
+    (printf "  -d, --debug           Print raw MIDI note numbers on each key event\n")
+    (printf "  -h, --help            Show this help message\n")
+    (return 0))
+
 (fn main (argc argv)
     (with-arena
         (SetConsoleOutputCP 65001)
@@ -219,15 +228,7 @@
                     (== (strcmp (cast char* arg) "--help") 0))
                 (set! help 1)))
 
-        (if help
-            (do
-                (printf "Usage: chordgen [options]\n\n")
-                (printf "MIDI chord trainer. Displays a random chord and waits for you to play it.\n\n")
-                (printf "Options:\n")
-                (printf "  -s, --select-device   List MIDI input devices and choose one interactively\n")
-                (printf "  -d, --debug           Print raw MIDI note numbers on each key event\n")
-                (printf "  -h, --help            Show this help message\n")
-                (return 0)))
+        (if help (do (return (print-help))))
 
         (let-chords note-names "C" "C♯" "D" "E♭" "E" "F" "F♯" "G" "A♭" "A" "B♭" "B")
 
