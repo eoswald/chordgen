@@ -24,16 +24,19 @@ MIDI chord trainer written in [Anchor](https://github.com/allenj12/anchor).
 .\chordgen.exe [options]
 ```
 
-The program picks a random chord (name and inversion) and waits for you to play it on your MIDI keyboard. Release all keys when you're done:
+Running without arguments shows a menu to pick a lesson. Each lesson is a sequence of exercises; each exercise picks a random key and random inversions, then asks you to play through a chord progression repeatedly.
 
-- **Correct** — moves on to the next chord
+- **Correct** — moves to the next chord in the progression
 - **Wrong** — shows what you actually played and lets you try again
 - **Unrecognized** — chord wasn't a known major, minor, or diminished triad
+- After completing all chords in the progression, the same key and inversions repeat for the remaining rounds, then the next exercise begins
 
 ### Options
 
 | Flag | Description |
 |------|-------------|
+| `-l`, `--list` | List all available lessons and exit. |
+| `--lesson N` | Start lesson N directly, skipping the menu. |
 | `-s`, `--select-device` | List available MIDI input devices and choose one interactively. Without this flag the first input device is used automatically. |
 | `-d`, `--debug` | Print raw MIDI note numbers on every key press and release. |
 | `-h`, `--help` | Show usage information and exit. |
@@ -41,10 +44,21 @@ The program picks a random chord (name and inversion) and waits for you to play 
 ### Examples
 
 ```powershell
-.\chordgen.exe                        # auto-select MIDI device, start immediately
+.\chordgen.exe                        # show lesson menu
+.\chordgen.exe --list                 # list all lessons
+.\chordgen.exe --lesson 2            # start lesson 2 directly
 .\chordgen.exe -s                     # pick MIDI device interactively
-.\chordgen.exe -s -d                  # device selection + debug note output
+.\chordgen.exe --lesson 3 -d         # lesson 3 with debug note output
 ```
+
+## Lessons
+
+| # | Name | Description |
+|---|------|-------------|
+| 1 | Free Play | All 12 major keys, I only, infinite |
+| 2 | I - IV - V (Major) | I - IV - V progression, sharp and flat key groups |
+| 3 | I - V - VI - IV (Major) | I - V - VI - IV progression, sharp and flat key groups |
+| 4 | Minor Keys | i - iv - v and i - v - VI - VII in natural minor |
 
 ## Chord coverage
 

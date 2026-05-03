@@ -1,0 +1,157 @@
+; chords.anc - Key/chord data, degree-to-chord generation, chord identification
+
+; Key encoding: (root-pc) + (mode * 16)
+;   root-pc: 0=C 1=C# 2=D 3=Eb 4=E 5=F 6=F# 7=G 8=Ab 9=A 10=Bb 11=B
+;   mode: 0=major 1=minor
+; Total 24 keys (12 major + 12 minor)
+
+; Degree offsets from root (semitones) for each scale degree 1-7
+; Major: W W H W W W H  (whole/half steps)
+; Natural minor: W H W W H W W
+
+; degree-chord-type: 0=maj 1=min 2=dim
+; major key degrees: I=maj II=min III=min IV=maj V=maj VI=min VII=dim
+; minor key degrees: I=min II=dim III=maj IV=min V=min VI=maj VII=maj
+
+(fn key-root (key-id)
+    (return (% key-id 16)))
+
+(fn key-mode (key-id)
+    (return (/ key-id 16)))
+
+; degree: 1-based (1=I, 2=II, etc.)
+(fn degree-semitones (mode degree)
+    (let d (- degree 1))
+    ; major offsets
+    (if (== mode 0)
+        (do
+            (if (== d 0) (return 0))
+            (if (== d 1) (return 2))
+            (if (== d 2) (return 4))
+            (if (== d 3) (return 5))
+            (if (== d 4) (return 7))
+            (if (== d 5) (return 9))
+            (if (== d 6) (return 11))))
+    ; minor offsets
+    (if (== d 0) (return 0))
+    (if (== d 1) (return 2))
+    (if (== d 2) (return 3))
+    (if (== d 3) (return 5))
+    (if (== d 4) (return 7))
+    (if (== d 5) (return 8))
+    (if (== d 6) (return 10))
+    (return 0))
+
+; Returns chord type: 0=maj 1=min 2=dim
+(fn degree-chord-type (mode degree)
+    (let d (- degree 1))
+    ; major key: I maj II min III min IV maj V maj VI min VII dim
+    (if (== mode 0)
+        (do
+            (if (== d 0) (return 0))
+            (if (== d 1) (return 1))
+            (if (== d 2) (return 1))
+            (if (== d 3) (return 0))
+            (if (== d 4) (return 0))
+            (if (== d 5) (return 1))
+            (if (== d 6) (return 2))))
+    ; minor key: I min II dim III maj IV min V min VI maj VII maj
+    (if (== d 0) (return 1))
+    (if (== d 1) (return 2))
+    (if (== d 2) (return 0))
+    (if (== d 3) (return 1))
+    (if (== d 4) (return 1))
+    (if (== d 5) (return 0))
+    (if (== d 6) (return 0))
+    (return 0))
+
+; Roman numeral string for a degree (1-7)
+(fn degree-roman (degree)
+    (if (== degree 1) (return "I"))
+    (if (== degree 2) (return "II"))
+    (if (== degree 3) (return "III"))
+    (if (== degree 4) (return "IV"))
+    (if (== degree 5) (return "V"))
+    (if (== degree 6) (return "VI"))
+    (if (== degree 7) (return "VII"))
+    (return "?"))
+
+; Build chord name string for a given key + degree + inversion into result buffer
+; result must be at least 32 bytes
+; Returns result
+(fn chord-name-for-degree (key-id degree inversion note-names result)
+    (let root-pc (key-root key-id))
+    (let mode (key-mode key-id))
+    (let offset (degree-semitones mode degree))
+    (let chord-root-pc (% (+ root-pc offset) 12))
+    (let ctype (degree-chord-type mode degree))
+    (let type-str (if (== ctype 0) "maj" (if (== ctype 1) "m" "dim")))
+    (let root-name (get note-names (* chord-root-pc 8)))
+    (let inv-str (if (== inversion 0) "root"
+                     (if (== inversion 1) "1st inversion" "2nd inversion")))
+    (sprintf result "%s%s %s" (cast char* root-name) (cast char* type-str) (cast char* inv-str))
+    (return result))
+
+; Key name string for a key-id into result (at least 24 bytes)
+(fn key-name (key-id note-names result)
+    (let root-pc (key-root key-id))
+    (let mode (key-mode key-id))
+    (let root-name (get note-names (* root-pc 8)))
+    (let mode-str (if (== mode 0) "major" "minor"))
+    (sprintf result "%s %s" (cast char* root-name) (cast char* mode-str))
+    (return result))
+
+; Chord identification (unchanged from original)
+(fn identify-chord (notes count note-names result)
+    (if (!= count 3)
+        (return 0))
+
+    (let p0 (% (get notes 0) 12))
+    (let p1 (% (get notes 8) 12))
+    (let p2 (% (get notes 16) 12))
+
+    (if (> p0 p1) (do (let t p0) (set! p0 p1) (set! p1 t)))
+    (if (> p1 p2) (do (let t p1) (set! p1 p2) (set! p2 t)))
+    (if (> p0 p1) (do (let t p0) (set! p0 p1) (set! p1 t)))
+
+    (if (|| (== p0 p1) (== p1 p2))
+        (return 0))
+
+    (let i1 (- p1 p0))
+    (let i2 (- p2 p1))
+
+    (let root-pc 0)
+    (let chord-type-str 0)
+    (let chord-type-id 0)
+
+    (if (&& (== i1 4) (== i2 3)) (do (set! root-pc p0) (set! chord-type-str "maj") (set! chord-type-id 1)))
+    (if (&& (== i1 3) (== i2 5)) (do (set! root-pc p2) (set! chord-type-str "maj") (set! chord-type-id 1)))
+    (if (&& (== i1 5) (== i2 4)) (do (set! root-pc p1) (set! chord-type-str "maj") (set! chord-type-id 1)))
+    (if (&& (== i1 3) (== i2 4)) (do (set! root-pc p0) (set! chord-type-str "m")   (set! chord-type-id 2)))
+    (if (&& (== i1 4) (== i2 5)) (do (set! root-pc p2) (set! chord-type-str "m")   (set! chord-type-id 2)))
+    (if (&& (== i1 5) (== i2 3)) (do (set! root-pc p1) (set! chord-type-str "m")   (set! chord-type-id 2)))
+    (if (&& (== i1 3) (== i2 3)) (do (set! root-pc p0) (set! chord-type-str "dim") (set! chord-type-id 3)))
+    (if (&& (== i1 3) (== i2 6)) (do (set! root-pc p2) (set! chord-type-str "dim") (set! chord-type-id 3)))
+    (if (&& (== i1 6) (== i2 3)) (do (set! root-pc p1) (set! chord-type-str "dim") (set! chord-type-id 3)))
+
+    (if (== chord-type-id 0)
+        (return 0))
+
+    (let third-interval (if (== chord-type-id 1) 4 3))
+    (let fifth-interval  (if (== chord-type-id 3) 6 7))
+    (let third-pc (% (+ root-pc third-interval) 12))
+    (let fifth-pc  (% (+ root-pc fifth-interval)  12))
+
+    (let lowest (get notes 0))
+    (for k 1 to count
+        (if (< (get notes (* k 8)) lowest)
+            (set! lowest (get notes (* k 8)))))
+    (let lowest-pc (% lowest 12))
+
+    (let inversion "root")
+    (if (== lowest-pc third-pc) (set! inversion "1st inversion"))
+    (if (== lowest-pc fifth-pc) (set! inversion "2nd inversion"))
+
+    (let root-name (get note-names (* root-pc 8)))
+    (sprintf result "%s%s %s" (cast char* root-name) (cast char* chord-type-str) (cast char* inversion))
+    (return result))

@@ -1,0 +1,137 @@
+; lessons.anc - Lesson/exercise data structures and definition macro
+
+; Key IDs: root-pc + mode*16
+;   major (mode=0): C=0 Cs=1 D=2 Eb=3 E=4 F=5 Fs=6 G=7 Ab=8 A=9 Bb=10 B=11
+;   minor (mode=1): C=16 Cs=17 D=18 Eb=19 E=20 F=21 Fs=22 G=23 Ab=24 A=25 Bb=26 B=27
+;   reps=-1 means infinite (never advance to next exercise)
+
+(struct Exercise
+    (keys 8)        ; pointer to key-id int array
+    (num-keys 8)
+    (progression 8) ; pointer to degree int array (1-based, 1-7)
+    (prog-len 8)
+    (reps 8))       ; successful rounds before advancing; -1 = infinite
+
+(struct Lesson
+    (name 8)
+    (exercises 8)   ; pointer to Exercise* pointer array
+    (num-exercises 8))
+
+; (define-lessons lessons-var count-var
+;     (lesson "Name"
+;       (exercise (keys K ...) (progression D ...) (reps N))
+;       ...)
+;     ...)
+;
+; Expands to runtime allocation code. Use inside a with-arena block.
+; Binds lessons-var to a Lesson array and count-var to the lesson count.
+;
+; Key symbols: C-major Cs-major D-major Eb-major E-major F-major Fs-major
+;              G-major Ab-major A-major Bb-major B-major
+;              C-minor Cs-minor D-minor Eb-minor E-minor F-minor Fs-minor
+;              G-minor Ab-minor A-minor Bb-minor B-minor
+(define-syntax define-lessons
+    (macro-case ()
+      [(_ lessons-var count-var lessons ...)
+       (let ()
+
+         ; Symbols in the input form carry KFFD marks — use id-sym to strip them.
+         (define (sym= stx raw-sym)
+           (eq? (id-sym stx) raw-sym))
+
+         ; Like assq but compares car via id-sym (handles marked symbols).
+         (define (find-clause key clauses)
+           (cond [(null? clauses) #f]
+                 [(and (pair? (car clauses)) (sym= (caar clauses) key))
+                  (car clauses)]
+                 [else (find-clause key (cdr clauses))]))
+
+         (define (key-id stx)
+           (case (id-sym stx)
+             [(C-major)   0] [(Cs-major)  1] [(D-major)   2] [(Eb-major)  3]
+             [(E-major)   4] [(F-major)   5] [(Fs-major)  6] [(G-major)   7]
+             [(Ab-major)  8] [(A-major)   9] [(Bb-major) 10] [(B-major)  11]
+             [(C-minor)  16] [(Cs-minor) 17] [(D-minor)  18] [(Eb-minor) 19]
+             [(E-minor)  20] [(F-minor)  21] [(Fs-minor) 22] [(G-minor)  23]
+             [(Ab-minor) 24] [(A-minor)  25] [(Bb-minor) 26] [(B-minor)  27]
+             [else (error "define-lessons: unknown key" (id-sym stx))]))
+
+         ; Parse (exercise (keys ...) (progression ...) (reps N)) → (keys prog reps)
+         (define (parse-exercise form)
+           (let* ([cls    (cdr form)]
+                  [ks-cl  (find-clause 'keys cls)]
+                  [pr-cl  (find-clause 'progression cls)]
+                  [rp-cl  (find-clause 'reps cls)])
+             (list (map key-id (cdr ks-cl))
+                   (cdr pr-cl)
+                   (cadr rp-cl))))
+
+         ; Emit code to alloc and fill an int array. Returns (sym . code-list).
+         (define (gen-int-array sym vals)
+           (let ([n (length vals)])
+             (cons sym
+               `((let ,sym (alloc ,(* n 8)))
+                 ,@(let loop ([i 0] [vs vals])
+                     (if (null? vs) '()
+                         (cons `(set! ,sym ,(* i 8) ,(car vs))
+                               (loop (+ i 1) (cdr vs)))))))))
+
+         ; Emit code to alloc and init one Exercise struct bound to ex-sym.
+         (define (gen-exercise ex-sym ks-sym pr-sym ex-data)
+           (let* ([keys (car ex-data)]
+                  [prog (cadr ex-data)]
+                  [reps (caddr ex-data)]
+                  [kg   (gen-int-array ks-sym keys)]
+                  [pg   (gen-int-array pr-sym prog)])
+             `(,@(cdr kg)
+               ,@(cdr pg)
+               (let ,ex-sym (alloc (sizeof Exercise)))
+               (set! ,ex-sym Exercise keys       ,(car kg))
+               (set! ,ex-sym Exercise num-keys   ,(length keys))
+               (set! ,ex-sym Exercise progression ,(car pg))
+               (set! ,ex-sym Exercise prog-len   ,(length prog))
+               (set! ,ex-sym Exercise reps       ,reps))))
+
+         ; Emit code for one lesson, storing into lessons-var at les-byte-off.
+         (define (gen-lesson les-var les-byte-off lesson-form uid)
+           (let* ([name     (cadr lesson-form)]
+                  [ex-forms (cddr lesson-form)]
+                  [ex-datas (map parse-exercise ex-forms)]
+                  [n-ex     (length ex-datas)]
+                  [ep-sym   (string->symbol (string-append "_ep" (number->string uid)))]
+                  [ex-syms  (let loop ([i 0] [acc '()])
+                              (if (= i n-ex) (reverse acc)
+                                  (loop (+ i 1)
+                                        (cons (string->symbol (string-append "_ex" (number->string (+ uid i)))) acc))))]
+                  [ks-syms  (map (lambda (i) (string->symbol (string-append "_ks" (number->string (+ uid i)))))
+                                 (iota n-ex))]
+                  [pr-syms  (map (lambda (i) (string->symbol (string-append "_pr" (number->string (+ uid i)))))
+                                 (iota n-ex))])
+             `(,@(apply append
+                   (map gen-exercise ex-syms ks-syms pr-syms ex-datas))
+               (let ,ep-sym (alloc ,(* n-ex 8)))
+               ,@(let loop ([i 0] [syms ex-syms])
+                   (if (null? syms) '()
+                       (cons `(set! ,ep-sym ,(* i 8) ,(car syms))
+                             (loop (+ i 1) (cdr syms)))))
+               (set! ,les-var ,les-byte-off             ,name)
+               (set! ,les-var ,(+ les-byte-off 8)  ,ep-sym)
+               (set! ,les-var ,(+ les-byte-off 16) ,n-ex))))
+
+         ; Chez Scheme's iota may not be available — provide a fallback.
+         (define (iota n)
+           (let loop ([i 0] [acc '()])
+             (if (= i n) (reverse acc) (loop (+ i 1) (cons i acc)))))
+
+         (let* ([lesson-list lessons]
+                [n-lessons   (length lesson-list)])
+           `(do
+              (let ,lessons-var (alloc ,(* n-lessons 24)))
+              (let ,count-var   ,n-lessons)
+              ,@(apply append
+                  (let loop ([li 0] [ls lesson-list] [uid 0])
+                    (if (null? ls) '()
+                        (let* ([lf     (car ls)]
+                               [n-ex   (length (cddr lf))]
+                               [code   (gen-lesson lessons-var (* li 24) lf (* li 100))])
+                          (cons code (loop (+ li 1) (cdr ls) (+ uid n-ex))))))))))]))

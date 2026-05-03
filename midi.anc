@@ -1,0 +1,93 @@
+; midi.anc - MIDI I/O utilities
+
+(include <portmidi.h>)
+(include <porttime.h>)
+
+(ffi Pm_Initialize () -> int)
+(ffi Pm_CountDevices () -> int)
+(ffi Pm_GetDeviceInfo (int) -> (const void*))
+(ffi Pm_OpenInput (void* int int int void*) -> int)
+(ffi Pm_Poll (void* void*) -> int)
+(ffi Pm_Read (void* void* int) -> int)
+(ffi Pt_Sleep (int) -> void)
+
+(fn copy-notes (src dst count)
+    (for i 0 to count
+        (set! dst (* i 8) (get src (* i 8))))
+    (return 0))
+
+(fn note-add (notes note-count note)
+    (let count (get note-count 0))
+    (for i 0 to count
+        (if (== (get notes (* i 8)) note)
+            (return 0)))
+    (set! notes (* count 8) note)
+    (set! note-count 0 (+ count 1))
+    (return 0))
+
+(fn note-remove (notes note-count note)
+    (let count (get note-count 0))
+    (for i 0 to count
+        (if (== (get notes (* i 8)) note)
+            (do
+                (for j i to (- count 1)
+                    (set! notes (* j 8) (get notes (* (+ j 1) 8))))
+                (set! note-count 0 (- count 1))
+                (return 0))))
+    (return 0))
+
+(fn print-notes (notes count)
+    (printf "Notes (%d):" (cast int count))
+    (for i 0 to count
+        (printf " %d" (cast int (get notes (* i 8)))))
+    (printf "\n")
+    (return 0))
+
+(fn find-midi-input-device (select)
+    (if (! select)
+        (do
+            (for i 0 to (Pm_CountDevices)
+                (let info (Pm_GetDeviceInfo (cast int i)))
+                (let is-output (get info 28 4))
+                (if (== is-output 0)
+                    (return i)))
+            (return -1)))
+    (with-arena
+        (printf "MIDI input devices:\n")
+        (for i 0 to (Pm_CountDevices)
+            (let info (Pm_GetDeviceInfo (cast int i)))
+            (let name (cast char* (get info 16)))
+            (let is-output (get info 28 4))
+            (if (== is-output 0)
+                (printf "  %d: \x1b[96m%s\x1b[0m\n" (cast int i) (cast char* name))))
+        (printf "Enter device ID: ")
+        (let buf (alloc 16))
+        (fgets (cast char* buf) 16 (c-const stdin))
+        (return (atoi (cast char* buf)))))
+
+(fn read-chord (midi buf active-notes note-count last-notes last-count debug)
+    (let started 0)
+    (while 1
+        (if (== (Pm_Poll (get midi 0)) 1)
+            (do
+                (let count (Pm_Read (get midi 0) buf 32))
+                (for i 0 to count
+                    (let message (get buf (* i 8) 4))
+                    (let status (band message 0xFF))
+                    (let note (band (rshift message 8) 0xFF))
+                    (let velocity (band (rshift message 16) 0xFF))
+                    (if (&& (== status 0x90) (!= velocity 0))
+                        (do
+                            (note-add active-notes note-count note)
+                            (set! started 1)
+                            (let nc (get note-count 0))
+                            (copy-notes active-notes last-notes nc)
+                            (set! last-count 0 nc)
+                            (if debug (print-notes active-notes nc))))
+                    (if (|| (== status 0x80) (&& (== status 0x90) (== velocity 0)))
+                        (do
+                            (note-remove active-notes note-count note)
+                            (if debug (print-notes active-notes (get note-count 0)))
+                            (if (&& started (== (get note-count 0) 0))
+                                (return 0)))))))
+        (Pt_Sleep 10)))
