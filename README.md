@@ -44,10 +44,10 @@ Running without arguments shows a menu to pick a lesson. Each lesson is a sequen
 ### Examples
 
 ```powershell
-.\chordgen.exe                        # show lesson menu
-.\chordgen.exe --list                 # list all lessons
+.\chordgen.exe                       # show lesson menu
+.\chordgen.exe --list                # list all lessons
 .\chordgen.exe --lesson 2            # start lesson 2 directly
-.\chordgen.exe -s                     # pick MIDI device interactively
+.\chordgen.exe -s                    # pick MIDI device interactively
 .\chordgen.exe --lesson 3 -d         # lesson 3 with debug note output
 ```
 
@@ -55,10 +55,10 @@ Running without arguments shows a menu to pick a lesson. Each lesson is a sequen
 
 | # | Name | Description |
 |---|------|-------------|
-| 1 | Free Play | All 12 major keys, I only, infinite |
-| 2 | I - IV - V (Major) | I - IV - V progression, sharp and flat key groups |
-| 3 | I - V - VI - IV (Major) | I - V - VI - IV progression, sharp and flat key groups |
-| 4 | Minor Keys | i - iv - v and i - v - VI - VII in natural minor |
+| 1 | I - V - VI - IV (Major) | I - V - VI - IV in C, D, F, B♭ — 10 reps |
+| 2 | Free Play | All 12 major keys, I only, infinite |
+| 3 | I - IV - V (Major) | I - IV - V progression, sharp and flat key groups — 3 reps each |
+| 4 | Minor Keys | i - iv - v and i - v - VI - VII in natural minor — 3 reps each |
 
 ## Chord coverage
 
