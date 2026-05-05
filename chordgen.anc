@@ -141,67 +141,94 @@
 
 ; ---- game loop ----
 
+; Run one chord challenge: prompt, read player input, identify, return 1 on correct.
+(fn challenge (degree target midi event active-notes note-count last-notes last-count note-names debug)
+    (printf "Play \x1b[93m%s\x1b[0m: \x1b[96m%s\x1b[0m\n"
+        (cast char* (degree-roman degree))
+        (cast char* target))
+
+    (set! note-count 0 0)
+    (set! last-count 0 0)
+    (read-chord midi event active-notes note-count last-notes last-count debug)
+
+    (let id-buf (alloc 32))
+    (let identified (identify-chord last-notes (get last-count 0) note-names id-buf))
+    (if (&& identified (== (strcmp (cast char* identified) (cast char* target)) 0))
+        (do
+            (printf "\x1b[92mCorrect!\x1b[0m\n")
+            (return 1)))
+    (if identified
+        (printf "That's \x1b[91m%s\x1b[0m, try again\n" (cast char* identified))
+        (printf "\x1b[93mUnknown chord\x1b[0m, try again\n"))
+    (return 0))
+
 (fn run-exercise (ex midi event active-notes note-count last-notes last-count note-names debug)
     (let num-keys (get ex Exercise num-keys))
     (let keys     (get ex Exercise keys))
     (let prog-len (get ex Exercise prog-len))
     (let prog     (get ex Exercise progression))
     (let reps     (get ex Exercise reps))
+    (let random-mode (== prog-len 0))
 
-    ; Pick key and inversions once for the whole exercise
+    ; Pick key once for the whole exercise
     (let key-idx (% (rand) num-keys))
     (let key-id  (get keys (* key-idx 8)))
 
-    (let inv-buf (alloc (* prog-len 8)))
-    (for i 0 to prog-len
-        (set! inv-buf (* i 8) (% (rand) 3)))
-
-    (let chord-bufs (alloc (* prog-len 8)))
-    (for i 0 to prog-len
-        (let cstr (alloc 32))
-        (chord-name-for-degree key-id (get prog (* i 8)) (get inv-buf (* i 8)) note-names cstr)
-        (set! chord-bufs (* i 8) cstr))
-
     (let key-buf (alloc 32))
     (key-name key-id note-names key-buf)
-    (printf "\nKey: \x1b[96m%s\x1b[0m  |  " (cast char* key-buf))
-    (for i 0 to prog-len
-        (printf "\x1b[93m%s\x1b[0m" (cast char* (degree-roman (get prog (* i 8)))))
-        (if (< i (- prog-len 1)) (printf " - ")))
-    (printf "\n")
-    (print-progression-line prog prog-len note-names key-id chord-bufs)
-    (printf "\n")
 
-    (let rounds-done 0)
-    (while (|| (== reps -1) (< rounds-done reps))
-        ; Play each chord in order
-        (let chord-idx 0)
-        (while (< chord-idx prog-len)
-            (with-arena-checkpoint
-                (let degree  (get prog (* chord-idx 8)))
-                (let target  (get chord-bufs (* chord-idx 8)))
+    (if random-mode
+        ; --- Random chord mode ---
+        (do
+            (printf "\nKey: \x1b[96m%s\x1b[0m  |  \x1b[93mRandom chords\x1b[0m\n\n"
+                (cast char* key-buf))
+            (let rounds-done 0)
+            (while (|| (== reps -1) (< rounds-done reps))
+                (with-arena-checkpoint
+                    (let degree (+ 1 (% (rand) 7)))
+                    (let inv    (% (rand) 3))
+                    (let target (alloc 32))
+                    (chord-name-for-degree key-id degree inv note-names target)
+                    ; Retry same chord until correct, then advance round counter.
+                    (let done 0)
+                    (while (! done)
+                        (if (challenge degree target midi event active-notes note-count
+                                       last-notes last-count note-names debug)
+                            (set! done 1)))
+                    (if (!= reps -1) (set! rounds-done (+ rounds-done 1))))))
+        ; --- Progression mode ---
+        (do
+            (let inv-buf (alloc (* prog-len 8)))
+            (for i 0 to prog-len
+                (set! inv-buf (* i 8) (% (rand) 3)))
 
-                (printf "Play \x1b[93m%s\x1b[0m: \x1b[96m%s\x1b[0m\n"
-                    (cast char* (degree-roman degree))
-                    (cast char* target))
+            (let chord-bufs (alloc (* prog-len 8)))
+            (for i 0 to prog-len
+                (let cstr (alloc 32))
+                (chord-name-for-degree key-id (get prog (* i 8)) (get inv-buf (* i 8)) note-names cstr)
+                (set! chord-bufs (* i 8) cstr))
 
-                (set! note-count 0 0)
-                (set! last-count 0 0)
-                (read-chord midi event active-notes note-count last-notes last-count debug)
+            (printf "\nKey: \x1b[96m%s\x1b[0m  |  " (cast char* key-buf))
+            (for i 0 to prog-len
+                (printf "\x1b[93m%s\x1b[0m" (cast char* (degree-roman (get prog (* i 8)))))
+                (if (< i (- prog-len 1)) (printf " - ")))
+            (printf "\n")
+            (print-progression-line prog prog-len note-names key-id chord-bufs)
+            (printf "\n")
 
-                (let id-buf (alloc 32))
-                (let identified (identify-chord last-notes (get last-count 0) note-names id-buf))
-                (if (&& identified (== (strcmp (cast char* identified) (cast char* target)) 0))
-                    (do
-                        (printf "\x1b[92mCorrect!\x1b[0m\n")
-                        (set! chord-idx (+ chord-idx 1)))
-                    (do
-                        (if identified
-                            (printf "That's \x1b[91m%s\x1b[0m, try again\n" (cast char* identified))
-                            (printf "\x1b[93mUnknown chord\x1b[0m, try again\n"))))))
+            (let rounds-done 0)
+            (while (|| (== reps -1) (< rounds-done reps))
+                (let chord-idx 0)
+                (while (< chord-idx prog-len)
+                    (with-arena-checkpoint
+                        (let degree (get prog (* chord-idx 8)))
+                        (let target (get chord-bufs (* chord-idx 8)))
+                        (if (challenge degree target midi event active-notes note-count
+                                       last-notes last-count note-names debug)
+                            (set! chord-idx (+ chord-idx 1)))))
 
-        (if (!= reps -1)
-            (set! rounds-done (+ rounds-done 1))))
+                (if (!= reps -1)
+                    (set! rounds-done (+ rounds-done 1))))))
     (return 0))
 
 (fn run-lesson (lesson midi event active-notes note-count last-notes last-count note-names debug)
@@ -234,29 +261,26 @@
         (let-note-names note-names)
 
         (define-lessons all-lessons num-all-lessons
-            (lesson "I - V - VI - IV (Major)"
+            (lesson "C major Triads"
+                (exercise (keys C-major)
+                          (random)
+                          (reps -1)))
+            (lesson "D major Triads"
+                (exercise (keys D-major)
+                          (random)
+                          (reps -1)))
+            (lesson "F major Triads"
+                (exercise (keys F-major)
+                          (random)
+                          (reps -1)))
+            (lesson "B♭ major Triads"
+                (exercise (keys Bb-major)
+                          (random)
+                          (reps -1)))
+            (lesson "I - V - VI - IV (C, D, F, B♭)"
                 (exercise (keys C-major D-major F-major Bb-major)
                           (progression 1 5 6 4)
-                          (reps 10)))
-            (lesson "Free Play"
-                (exercise (keys C-major Cs-major D-major Eb-major E-major F-major
-                                Fs-major G-major Ab-major A-major Bb-major B-major)
-                          (progression 1)
-                          (reps -1)))
-            (lesson "I - IV - V (Major)"
-                (exercise (keys C-major G-major D-major A-major E-major)
-                          (progression 1 4 5)
-                          (reps 3))
-                (exercise (keys F-major Bb-major Eb-major Ab-major B-major Fs-major)
-                          (progression 1 4 5)
-                          (reps 3)))
-            (lesson "Minor Keys"
-                (exercise (keys A-minor D-minor E-minor)
-                          (progression 1 4 5)
-                          (reps 3))
-                (exercise (keys A-minor D-minor E-minor G-minor C-minor F-minor)
-                          (progression 1 5 6 7)
-                          (reps 3))))
+                          (reps 10))))
 
         (if list-lessons
             (do

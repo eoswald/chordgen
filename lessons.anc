@@ -20,11 +20,15 @@
 ; (define-lessons lessons-var count-var
 ;     (lesson "Name"
 ;       (exercise (keys K ...) (progression D ...) (reps N))
+;       (exercise (keys K ...) (random)            (reps N))
 ;       ...)
 ;     ...)
 ;
 ; Expands to runtime allocation code. Use inside a with-arena block.
 ; Binds lessons-var to a Lesson array and count-var to the lesson count.
+;
+; (random) means "pick a random chord (degree 1-7) each round" instead of
+; following a fixed progression. Encoded at runtime as prog-len=0.
 ;
 ; Key symbols: C-major Cs-major D-major Eb-major E-major F-major Fs-major
 ;              G-major Ab-major A-major Bb-major B-major
@@ -57,13 +61,16 @@
              [else (error "define-lessons: unknown key" (id-sym stx))]))
 
          ; Parse (exercise (keys ...) (progression ...) (reps N)) → (keys prog reps)
+         ; or    (exercise (keys ...) (random)           (reps N)) → (keys '() reps)
+         ; Empty progression list signals random mode.
          (define (parse-exercise form)
            (let* ([cls    (cdr form)]
                   [ks-cl  (find-clause 'keys cls)]
                   [pr-cl  (find-clause 'progression cls)]
+                  [rd-cl  (find-clause 'random cls)]
                   [rp-cl  (find-clause 'reps cls)])
              (list (map key-id (cdr ks-cl))
-                   (cdr pr-cl)
+                   (if rd-cl '() (cdr pr-cl))
                    (cadr rp-cl))))
 
          ; Emit code to alloc and fill an int array. Returns (sym . code-list).
@@ -77,18 +84,20 @@
                                (loop (+ i 1) (cdr vs)))))))))
 
          ; Emit code to alloc and init one Exercise struct bound to ex-sym.
+         ; Random mode: prog is empty → no progression alloc, prog-len=0, progression=null.
          (define (gen-exercise ex-sym ks-sym pr-sym ex-data)
-           (let* ([keys (car ex-data)]
-                  [prog (cadr ex-data)]
-                  [reps (caddr ex-data)]
-                  [kg   (gen-int-array ks-sym keys)]
-                  [pg   (gen-int-array pr-sym prog)])
+           (let* ([keys    (car ex-data)]
+                  [prog    (cadr ex-data)]
+                  [reps    (caddr ex-data)]
+                  [kg      (gen-int-array ks-sym keys)]
+                  [random? (null? prog)]
+                  [pg      (if random? #f (gen-int-array pr-sym prog))])
              `(,@(cdr kg)
-               ,@(cdr pg)
+               ,@(if random? '() (cdr pg))
                (let ,ex-sym (alloc (sizeof Exercise)))
                (set! ,ex-sym Exercise keys       ,(car kg))
                (set! ,ex-sym Exercise num-keys   ,(length keys))
-               (set! ,ex-sym Exercise progression ,(car pg))
+               (set! ,ex-sym Exercise progression ,(if random? 0 (car pg)))
                (set! ,ex-sym Exercise prog-len   ,(length prog))
                (set! ,ex-sym Exercise reps       ,reps))))
 

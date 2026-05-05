@@ -2,15 +2,17 @@
 
 MIDI chord trainer written in [Anchor](https://github.com/allenj12/anchor).
 
-> **Windows only.** The console setup (`SetConsoleOutputCP`, `_setmode`) and build toolchain rely on Windows APIs and MSYS2/MinGW.
+> **Windows only.** The console setup (`SetConsoleOutputCP`, `_setmode`) and build toolchain rely on Windows APIs and MSVC.
 
 ## Prerequisites
 
 - [Anchor compiler](https://github.com/allenj12/anchor) (`anchorc` on PATH)
-- [MSYS2](https://www.msys2.org/) with PortMidi installed:
-  ```bash
-  pacman -S mingw-w64-x86_64-portmidi
+- Visual Studio with the **x64 Native Tools** environment (Community or Build Tools)
+- [vcpkg](https://vcpkg.io/) with PortMidi installed:
+  ```powershell
+  vcpkg install portmidi:x64-windows
   ```
+  Add `C:\vcpkg\installed\x64-windows\bin` to your `PATH` so `portmidi.dll` is found at runtime.
 
 ## Build
 
@@ -55,10 +57,11 @@ Running without arguments shows a menu to pick a lesson. Each lesson is a sequen
 
 | # | Name | Description |
 |---|------|-------------|
-| 1 | I - V - VI - IV (Major) | I - V - VI - IV in C, D, F, B♭ — 10 reps |
-| 2 | Free Play | All 12 major keys, I only, infinite |
-| 3 | I - IV - V (Major) | I - IV - V progression, sharp and flat key groups — 3 reps each |
-| 4 | Minor Keys | i - iv - v and i - v - VI - VII in natural minor — 3 reps each |
+| 1 | C major Triads, infinite |
+| 2 | D major Triads, infinite |
+| 3 | F major Triads, infinite |
+| 4 | B♭ major Triads, infinite |
+| 5 | I - V - VI - IV (Major) | I - V - VI - IV in C, D, F, B♭ — 10 reps |
 
 ## Chord coverage
 

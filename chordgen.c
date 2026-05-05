@@ -27,10 +27,14 @@ typedef uint64_t AnchorVal;
 #define _ANCH_IVAL(v)  ((intptr_t)(int64_t)(v))
 
 /* Float64: reinterpret bits as double */
-#define _ANCH_FVAL(v) ({ AnchorVal _av = (v); double _fv; __builtin_memcpy(&_fv, &_av, sizeof(double)); _fv; })
+static inline double _ANCH_FVAL(AnchorVal v) {
+    double _fv; memcpy(&_fv, &v, sizeof(double)); return _fv;
+}
 
 /* Float32: reinterpret low 32 bits as float */
-#define _ANCH_F32VAL(v) ({ uint32_t _bv = (uint32_t)(v); float _fv; __builtin_memcpy(&_fv, &_bv, sizeof(float)); _fv; })
+static inline float _ANCH_F32VAL(AnchorVal v) {
+    uint32_t _bv = (uint32_t)v; float _fv; memcpy(&_fv, &_bv, sizeof(float)); return _fv;
+}
 
 #if defined(__GNUC__) || defined(__clang__)
 #  define ANCHOR_PURE __attribute__((const))
@@ -53,13 +57,13 @@ static _Thread_local _AnchorArena* _anchor_arena_top = NULL;
 #else
 static _AnchorArena* _anchor_arena_top = NULL;
 #endif
-#define ANCHOR_DEFAULT_ARENA_CAP (1024 * 1024)
+#define ANCHOR_DEFAULT_ARENA_CAP 65536
 
 static inline AnchorVal anchor_alloc(size_t size) {
     _AnchorArena* a = _anchor_arena_top;
-    if (!a) __builtin_trap();
+    if (!a) abort();
     size_t aligned = (size + 7u) & ~7u;
-    if (a->used + aligned > a->cap) __builtin_trap();
+    if (a->used + aligned > a->cap) abort();
     AnchorVal r = (AnchorVal)(uintptr_t)(a->buf + a->used);
     a->used += aligned;
     return r;
@@ -87,7 +91,7 @@ static inline ANCHOR_PURE AnchorVal anchor_mod(AnchorVal a, AnchorVal b) { retur
 /* ---- Float constructor / arithmetic ---- */
 
 static inline ANCHOR_PURE AnchorVal anchor_float(double v) {
-    AnchorVal bits; __builtin_memcpy(&bits, &v, sizeof(double)); return bits;
+    AnchorVal bits; memcpy(&bits, &v, sizeof(double)); return bits;
 }
 static inline ANCHOR_PURE AnchorVal anchor_addf(AnchorVal a, AnchorVal b) { return anchor_float(_ANCH_FVAL(a) + _ANCH_FVAL(b)); }
 static inline ANCHOR_PURE AnchorVal anchor_subf(AnchorVal a, AnchorVal b) { return anchor_float(_ANCH_FVAL(a) - _ANCH_FVAL(b)); }
@@ -97,7 +101,7 @@ static inline ANCHOR_PURE AnchorVal anchor_divf(AnchorVal a, AnchorVal b) { retu
 /* ---- Float32 constructor / arithmetic ---- */
 
 static inline ANCHOR_PURE AnchorVal anchor_f32(float v) {
-    uint32_t bits; __builtin_memcpy(&bits, &v, sizeof(float)); return (AnchorVal)bits;
+    uint32_t bits; memcpy(&bits, &v, sizeof(float)); return (AnchorVal)bits;
 }
 static inline ANCHOR_PURE AnchorVal anchor_addf32(AnchorVal a, AnchorVal b) { return anchor_f32(_ANCH_F32VAL(a) + _ANCH_F32VAL(b)); }
 static inline ANCHOR_PURE AnchorVal anchor_subf32(AnchorVal a, AnchorVal b) { return anchor_f32(_ANCH_F32VAL(a) - _ANCH_F32VAL(b)); }
@@ -226,6 +230,7 @@ AnchorVal print_help(void);
 AnchorVal print_lesson_list(AnchorVal lessons, AnchorVal num_lessons);
 AnchorVal select_lesson_menu(AnchorVal lessons, AnchorVal num_lessons);
 AnchorVal print_progression_line(AnchorVal prog, AnchorVal prog_len, AnchorVal note_names, AnchorVal key_id, AnchorVal chord_bufs);
+AnchorVal challenge(AnchorVal degree, AnchorVal target, AnchorVal midi, AnchorVal event, AnchorVal active_notes, AnchorVal note_count, AnchorVal last_notes, AnchorVal last_count, AnchorVal note_names, AnchorVal debug);
 AnchorVal run_exercise(AnchorVal ex, AnchorVal midi, AnchorVal event, AnchorVal active_notes, AnchorVal note_count, AnchorVal last_notes, AnchorVal last_count, AnchorVal note_names, AnchorVal debug);
 AnchorVal run_lesson(AnchorVal lesson, AnchorVal midi, AnchorVal event, AnchorVal active_notes, AnchorVal note_count, AnchorVal last_notes, AnchorVal last_count, AnchorVal note_names, AnchorVal debug);
 
@@ -248,10 +253,9 @@ AnchorVal copy_notes(AnchorVal src, AnchorVal dst, AnchorVal count) {
     {
         AnchorVal i = anchor_int(0);
         while (_ANCH_IVAL(anchor_lt(i, count))) {
-            AnchorVal _anc_t1 = 0;
-            __builtin_memcpy(&_anc_t1, (char*)_ANCH_HPTR(src) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
+            AnchorVal _anc_t1 = *(AnchorVal*)((char*)_ANCH_HPTR(src) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))));
             { AnchorVal _anc_t2 = _anc_t1;
-              __builtin_memcpy((char*)_ANCH_HPTR(dst) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), &_anc_t2, sizeof(AnchorVal)); }
+              memcpy((char*)_ANCH_HPTR(dst) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), &_anc_t2, sizeof(AnchorVal)); }
             ANCHOR_NIL;
             i = anchor_add(i, anchor_int(1));
         }
@@ -260,14 +264,12 @@ AnchorVal copy_notes(AnchorVal src, AnchorVal dst, AnchorVal count) {
 }
 
 AnchorVal note_add(AnchorVal notes, AnchorVal note_count, AnchorVal note) {
-    AnchorVal _anc_t3 = 0;
-    __builtin_memcpy(&_anc_t3, (char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), 8);
+    AnchorVal _anc_t3 = *(AnchorVal*)((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)));
     AnchorVal count = _anc_t3;
     {
         AnchorVal i = anchor_int(0);
         while (_ANCH_IVAL(anchor_lt(i, count))) {
-            AnchorVal _anc_t4 = 0;
-            __builtin_memcpy(&_anc_t4, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
+            AnchorVal _anc_t4 = *(AnchorVal*)((char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))));
             if (_ANCH_IVAL(anchor_eq(_anc_t4, note))) {
                 return anchor_int(0);
             }
@@ -275,37 +277,34 @@ AnchorVal note_add(AnchorVal notes, AnchorVal note_count, AnchorVal note) {
         }
     }
     { AnchorVal _anc_t5 = note;
-      __builtin_memcpy((char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(count, anchor_int(8))), &_anc_t5, sizeof(AnchorVal)); }
+      memcpy((char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(count, anchor_int(8))), &_anc_t5, sizeof(AnchorVal)); }
     ANCHOR_NIL;
     { AnchorVal _anc_t6 = anchor_add(count, anchor_int(1));
-      __builtin_memcpy((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t6, sizeof(AnchorVal)); }
+      memcpy((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t6, sizeof(AnchorVal)); }
     ANCHOR_NIL;
     return anchor_int(0);
 }
 
 AnchorVal note_remove(AnchorVal notes, AnchorVal note_count, AnchorVal note) {
-    AnchorVal _anc_t7 = 0;
-    __builtin_memcpy(&_anc_t7, (char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), 8);
+    AnchorVal _anc_t7 = *(AnchorVal*)((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)));
     AnchorVal count = _anc_t7;
     {
         AnchorVal i = anchor_int(0);
         while (_ANCH_IVAL(anchor_lt(i, count))) {
-            AnchorVal _anc_t8 = 0;
-            __builtin_memcpy(&_anc_t8, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
+            AnchorVal _anc_t8 = *(AnchorVal*)((char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))));
             if (_ANCH_IVAL(anchor_eq(_anc_t8, note))) {
                 {
                     AnchorVal j = i;
                     while (_ANCH_IVAL(anchor_lt(j, anchor_sub(count, anchor_int(1))))) {
-                        AnchorVal _anc_t9 = 0;
-                        __builtin_memcpy(&_anc_t9, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(anchor_add(j, anchor_int(1)), anchor_int(8))), 8);
+                        AnchorVal _anc_t9 = *(AnchorVal*)((char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(anchor_add(j, anchor_int(1)), anchor_int(8))));
                         { AnchorVal _anc_t10 = _anc_t9;
-                          __builtin_memcpy((char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(j, anchor_int(8))), &_anc_t10, sizeof(AnchorVal)); }
+                          memcpy((char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(j, anchor_int(8))), &_anc_t10, sizeof(AnchorVal)); }
                         ANCHOR_NIL;
                         j = anchor_add(j, anchor_int(1));
                     }
                 }
                 { AnchorVal _anc_t11 = anchor_sub(count, anchor_int(1));
-                  __builtin_memcpy((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t11, sizeof(AnchorVal)); }
+                  memcpy((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t11, sizeof(AnchorVal)); }
                 ANCHOR_NIL;
                 return anchor_int(0);
             }
@@ -320,8 +319,7 @@ AnchorVal print_notes(AnchorVal notes, AnchorVal count) {
     {
         AnchorVal i = anchor_int(0);
         while (_ANCH_IVAL(anchor_lt(i, count))) {
-            AnchorVal _anc_t12 = 0;
-            __builtin_memcpy(&_anc_t12, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
+            AnchorVal _anc_t12 = *(AnchorVal*)((char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))));
             printf(" %d", (int)_ANCH_IVAL(_anc_t12));
             i = anchor_add(i, anchor_int(1));
         }
@@ -334,23 +332,20 @@ AnchorVal find_midi_input_device(AnchorVal select) {
     if (_ANCH_IVAL(anchor_not(select))) {
         {
             AnchorVal i = anchor_int(0);
-            int _anc_t13_raw;
-            AnchorVal _anc_t13;
-            _anc_t13_raw = Pm_CountDevices();
-            _anc_t13 = anchor_int((intptr_t)_anc_t13_raw);
-            while (_ANCH_IVAL(anchor_lt(i, _anc_t13))) {
+            while (1) {
+                int _anc_t13_raw = Pm_CountDevices();
+                AnchorVal _anc_t13 = anchor_int((intptr_t)_anc_t13_raw);
+                if (!_ANCH_IVAL(anchor_lt(i, _anc_t13))) break;
                 const void* _anc_t14_raw = Pm_GetDeviceInfo((int)_ANCH_IVAL(i));
                 AnchorVal _anc_t14 = anchor_ext((void*)_anc_t14_raw);
                 AnchorVal info = _anc_t14;
                 AnchorVal _anc_t15 = 0;
-                __builtin_memcpy(&_anc_t15, (char*)_ANCH_HPTR(info) + _ANCH_IVAL(anchor_int(28)), 4);
+                memcpy(&_anc_t15, (char*)_ANCH_HPTR(info) + _ANCH_IVAL(anchor_int(28)), 4);
                 AnchorVal is_output = _anc_t15;
                 if (_ANCH_IVAL(anchor_eq(is_output, anchor_int(0)))) {
                     return i;
                 }
                 i = anchor_add(i, anchor_int(1));
-                _anc_t13_raw = Pm_CountDevices();
-                _anc_t13 = anchor_int((intptr_t)_anc_t13_raw);
             }
         }
         return anchor_int(-1);
@@ -362,26 +357,22 @@ AnchorVal find_midi_input_device(AnchorVal select) {
         printf("MIDI input devices:\n");
         {
             AnchorVal i = anchor_int(0);
-            int _anc_t17_raw;
-            AnchorVal _anc_t17;
-            _anc_t17_raw = Pm_CountDevices();
-            _anc_t17 = anchor_int((intptr_t)_anc_t17_raw);
-            while (_ANCH_IVAL(anchor_lt(i, _anc_t17))) {
+            while (1) {
+                int _anc_t17_raw = Pm_CountDevices();
+                AnchorVal _anc_t17 = anchor_int((intptr_t)_anc_t17_raw);
+                if (!_ANCH_IVAL(anchor_lt(i, _anc_t17))) break;
                 const void* _anc_t18_raw = Pm_GetDeviceInfo((int)_ANCH_IVAL(i));
                 AnchorVal _anc_t18 = anchor_ext((void*)_anc_t18_raw);
                 AnchorVal info = _anc_t18;
-                AnchorVal _anc_t19 = 0;
-                __builtin_memcpy(&_anc_t19, (char*)_ANCH_HPTR(info) + _ANCH_IVAL(anchor_int(16)), 8);
+                AnchorVal _anc_t19 = *(AnchorVal*)((char*)_ANCH_HPTR(info) + _ANCH_IVAL(anchor_int(16)));
                 AnchorVal name = anchor_ext((char*)_anch_ptr(_anc_t19));
                 AnchorVal _anc_t20 = 0;
-                __builtin_memcpy(&_anc_t20, (char*)_ANCH_HPTR(info) + _ANCH_IVAL(anchor_int(28)), 4);
+                memcpy(&_anc_t20, (char*)_ANCH_HPTR(info) + _ANCH_IVAL(anchor_int(28)), 4);
                 AnchorVal is_output = _anc_t20;
                 if (_ANCH_IVAL(anchor_eq(is_output, anchor_int(0)))) {
                     printf("  %d: \x1B[96m%s\x1B[0m\n", (int)_ANCH_IVAL(i), ((char*)_anch_ptr(name)));
                 }
                 i = anchor_add(i, anchor_int(1));
-                _anc_t17_raw = Pm_CountDevices();
-                _anc_t17 = anchor_int((intptr_t)_anc_t17_raw);
             }
         }
         printf("Enter device ID: ");
@@ -399,13 +390,11 @@ AnchorVal find_midi_input_device(AnchorVal select) {
 AnchorVal read_chord(AnchorVal midi, AnchorVal buf, AnchorVal active_notes, AnchorVal note_count, AnchorVal last_notes, AnchorVal last_count, AnchorVal debug) {
     AnchorVal started = anchor_int(0);
     while (_ANCH_IVAL(anchor_int(1))) {
-        AnchorVal _anc_t22 = 0;
-        __builtin_memcpy(&_anc_t22, (char*)_ANCH_HPTR(midi) + _ANCH_IVAL(anchor_int(0)), 8);
+        AnchorVal _anc_t22 = *(AnchorVal*)((char*)_ANCH_HPTR(midi) + _ANCH_IVAL(anchor_int(0)));
         int _anc_t23_raw = Pm_Poll(((void*)_anch_ptr(_anc_t22)));
         AnchorVal _anc_t23 = anchor_int((intptr_t)_anc_t23_raw);
         if (_ANCH_IVAL(anchor_eq(_anc_t23, anchor_int(1)))) {
-            AnchorVal _anc_t24 = 0;
-            __builtin_memcpy(&_anc_t24, (char*)_ANCH_HPTR(midi) + _ANCH_IVAL(anchor_int(0)), 8);
+            AnchorVal _anc_t24 = *(AnchorVal*)((char*)_ANCH_HPTR(midi) + _ANCH_IVAL(anchor_int(0)));
             int _anc_t25_raw = Pm_Read(((void*)_anch_ptr(_anc_t24)), ((void*)_anch_ptr(buf)), 32);
             AnchorVal _anc_t25 = anchor_int((intptr_t)_anc_t25_raw);
             AnchorVal count = _anc_t25;
@@ -413,7 +402,7 @@ AnchorVal read_chord(AnchorVal midi, AnchorVal buf, AnchorVal active_notes, Anch
                 AnchorVal i = anchor_int(0);
                 while (_ANCH_IVAL(anchor_lt(i, count))) {
                     AnchorVal _anc_t26 = 0;
-                    __builtin_memcpy(&_anc_t26, (char*)_ANCH_HPTR(buf) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 4);
+                    memcpy(&_anc_t26, (char*)_ANCH_HPTR(buf) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 4);
                     AnchorVal message = _anc_t26;
                     AnchorVal status = anchor_band(message, anchor_int(255));
                     AnchorVal note = anchor_band(anchor_rshift(message, anchor_int(8)), anchor_int(255));
@@ -421,12 +410,11 @@ AnchorVal read_chord(AnchorVal midi, AnchorVal buf, AnchorVal active_notes, Anch
                     if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(status, anchor_int(144)) && !!anchor_ne(velocity, anchor_int(0))))) {
                         note_add(active_notes, note_count, note);
                         started = anchor_int(1);
-                        AnchorVal _anc_t27 = 0;
-                        __builtin_memcpy(&_anc_t27, (char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), 8);
+                        AnchorVal _anc_t27 = *(AnchorVal*)((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)));
                         AnchorVal nc = _anc_t27;
                         copy_notes(active_notes, last_notes, nc);
                         { AnchorVal _anc_t28 = nc;
-                          __builtin_memcpy((char*)_ANCH_HPTR(last_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t28, sizeof(AnchorVal)); }
+                          memcpy((char*)_ANCH_HPTR(last_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t28, sizeof(AnchorVal)); }
                         ANCHOR_NIL;
                         if (_ANCH_IVAL(debug)) {
                             print_notes(active_notes, nc);
@@ -435,13 +423,15 @@ AnchorVal read_chord(AnchorVal midi, AnchorVal buf, AnchorVal active_notes, Anch
                     if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(status, anchor_int(128)) || !!(AnchorVal)(!!anchor_eq(status, anchor_int(144)) && !!anchor_eq(velocity, anchor_int(0)))))) {
                         note_remove(active_notes, note_count, note);
                         if (_ANCH_IVAL(debug)) {
-                            AnchorVal _anc_t29 = 0;
-                            __builtin_memcpy(&_anc_t29, (char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), 8);
+                            AnchorVal _anc_t29 = *(AnchorVal*)((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)));
                             print_notes(active_notes, _anc_t29);
                         }
-                        if (_ANCH_IVAL((AnchorVal)(!!started && ({ AnchorVal _anc_t30 = 0;
-__builtin_memcpy(&_anc_t30, (char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), 8);
-(AnchorVal)!!anchor_eq(_anc_t30, anchor_int(0)); })))) {
+                        AnchorVal _anc_t31 = (AnchorVal)(!!started);
+                        if (_anc_t31) {
+                            AnchorVal _anc_t30 = *(AnchorVal*)((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)));
+                            _anc_t31 = (AnchorVal)(!!anchor_eq(_anc_t30, anchor_int(0)));
+                        }
+                        if (_ANCH_IVAL(_anc_t31)) {
                             return anchor_int(0);
                         }
                     }
@@ -591,35 +581,34 @@ AnchorVal chord_name_for_degree(AnchorVal key_id, AnchorVal degree, AnchorVal in
     AnchorVal offset = degree_semitones(mode, degree);
     AnchorVal chord_root_pc = anchor_mod(anchor_add(root_pc, offset), anchor_int(12));
     AnchorVal ctype = degree_chord_type(mode, degree);
-    AnchorVal _anc_t31;
+    AnchorVal _anc_t32;
     if (_ANCH_IVAL(anchor_eq(ctype, anchor_int(0)))) {
-        _anc_t31 = anchor_ext((void*)"maj");
+        _anc_t32 = anchor_ext((void*)"maj");
     } else {
-        AnchorVal _anc_t32;
+        AnchorVal _anc_t33;
         if (_ANCH_IVAL(anchor_eq(ctype, anchor_int(1)))) {
-            _anc_t32 = anchor_ext((void*)"m");
+            _anc_t33 = anchor_ext((void*)"m");
         } else {
-            _anc_t32 = anchor_ext((void*)"dim");
+            _anc_t33 = anchor_ext((void*)"dim");
         }
-        _anc_t31 = _anc_t32;
+        _anc_t32 = _anc_t33;
     }
-    AnchorVal type_str = _anc_t31;
-    AnchorVal _anc_t33 = 0;
-    __builtin_memcpy(&_anc_t33, (char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_mul(chord_root_pc, anchor_int(8))), 8);
-    AnchorVal root_name = _anc_t33;
-    AnchorVal _anc_t34;
+    AnchorVal type_str = _anc_t32;
+    AnchorVal _anc_t34 = *(AnchorVal*)((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_mul(chord_root_pc, anchor_int(8))));
+    AnchorVal root_name = _anc_t34;
+    AnchorVal _anc_t35;
     if (_ANCH_IVAL(anchor_eq(inversion, anchor_int(0)))) {
-        _anc_t34 = anchor_ext((void*)"root");
+        _anc_t35 = anchor_ext((void*)"root");
     } else {
-        AnchorVal _anc_t35;
+        AnchorVal _anc_t36;
         if (_ANCH_IVAL(anchor_eq(inversion, anchor_int(1)))) {
-            _anc_t35 = anchor_ext((void*)"1st inversion");
+            _anc_t36 = anchor_ext((void*)"1st inversion");
         } else {
-            _anc_t35 = anchor_ext((void*)"2nd inversion");
+            _anc_t36 = anchor_ext((void*)"2nd inversion");
         }
-        _anc_t34 = _anc_t35;
+        _anc_t35 = _anc_t36;
     }
-    AnchorVal inv_str = _anc_t34;
+    AnchorVal inv_str = _anc_t35;
     sprintf(((char*)_anch_ptr(result)), "%s%s %s", ((char*)_anch_ptr(root_name)), ((char*)_anch_ptr(type_str)), ((char*)_anch_ptr(inv_str)));
     return result;
 }
@@ -627,16 +616,15 @@ AnchorVal chord_name_for_degree(AnchorVal key_id, AnchorVal degree, AnchorVal in
 AnchorVal key_name(AnchorVal key_id, AnchorVal note_names, AnchorVal result) {
     AnchorVal root_pc = key_root(key_id);
     AnchorVal mode = key_mode(key_id);
-    AnchorVal _anc_t36 = 0;
-    __builtin_memcpy(&_anc_t36, (char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_mul(root_pc, anchor_int(8))), 8);
-    AnchorVal root_name = _anc_t36;
-    AnchorVal _anc_t37;
+    AnchorVal _anc_t37 = *(AnchorVal*)((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_mul(root_pc, anchor_int(8))));
+    AnchorVal root_name = _anc_t37;
+    AnchorVal _anc_t38;
     if (_ANCH_IVAL(anchor_eq(mode, anchor_int(0)))) {
-        _anc_t37 = anchor_ext((void*)"major");
+        _anc_t38 = anchor_ext((void*)"major");
     } else {
-        _anc_t37 = anchor_ext((void*)"minor");
+        _anc_t38 = anchor_ext((void*)"minor");
     }
-    AnchorVal mode_str = _anc_t37;
+    AnchorVal mode_str = _anc_t38;
     sprintf(((char*)_anch_ptr(result)), "%s %s", ((char*)_anch_ptr(root_name)), ((char*)_anch_ptr(mode_str)));
     return result;
 }
@@ -645,15 +633,12 @@ AnchorVal identify_chord(AnchorVal notes, AnchorVal count, AnchorVal note_names,
     if (_ANCH_IVAL(anchor_ne(count, anchor_int(3)))) {
         return anchor_int(0);
     }
-    AnchorVal _anc_t38 = 0;
-    __builtin_memcpy(&_anc_t38, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_int(0)), 8);
-    AnchorVal p0 = anchor_mod(_anc_t38, anchor_int(12));
-    AnchorVal _anc_t39 = 0;
-    __builtin_memcpy(&_anc_t39, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_int(8)), 8);
-    AnchorVal p1 = anchor_mod(_anc_t39, anchor_int(12));
-    AnchorVal _anc_t40 = 0;
-    __builtin_memcpy(&_anc_t40, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_int(16)), 8);
-    AnchorVal p2 = anchor_mod(_anc_t40, anchor_int(12));
+    AnchorVal _anc_t39 = *(AnchorVal*)((char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_int(0)));
+    AnchorVal p0 = anchor_mod(_anc_t39, anchor_int(12));
+    AnchorVal _anc_t40 = *(AnchorVal*)((char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_int(8)));
+    AnchorVal p1 = anchor_mod(_anc_t40, anchor_int(12));
+    AnchorVal _anc_t41 = *(AnchorVal*)((char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_int(16)));
+    AnchorVal p2 = anchor_mod(_anc_t41, anchor_int(12));
     if (_ANCH_IVAL(anchor_gt(p0, p1))) {
         AnchorVal t = p0;
         p0 = p1;
@@ -725,34 +710,31 @@ AnchorVal identify_chord(AnchorVal notes, AnchorVal count, AnchorVal note_names,
     if (_ANCH_IVAL(anchor_eq(chord_type_id, anchor_int(0)))) {
         return anchor_int(0);
     }
-    AnchorVal _anc_t41;
-    if (_ANCH_IVAL(anchor_eq(chord_type_id, anchor_int(1)))) {
-        _anc_t41 = anchor_int(4);
-    } else {
-        _anc_t41 = anchor_int(3);
-    }
-    AnchorVal third_interval = _anc_t41;
     AnchorVal _anc_t42;
-    if (_ANCH_IVAL(anchor_eq(chord_type_id, anchor_int(3)))) {
-        _anc_t42 = anchor_int(6);
+    if (_ANCH_IVAL(anchor_eq(chord_type_id, anchor_int(1)))) {
+        _anc_t42 = anchor_int(4);
     } else {
-        _anc_t42 = anchor_int(7);
+        _anc_t42 = anchor_int(3);
     }
-    AnchorVal fifth_interval = _anc_t42;
+    AnchorVal third_interval = _anc_t42;
+    AnchorVal _anc_t43;
+    if (_ANCH_IVAL(anchor_eq(chord_type_id, anchor_int(3)))) {
+        _anc_t43 = anchor_int(6);
+    } else {
+        _anc_t43 = anchor_int(7);
+    }
+    AnchorVal fifth_interval = _anc_t43;
     AnchorVal third_pc = anchor_mod(anchor_add(root_pc, third_interval), anchor_int(12));
     AnchorVal fifth_pc = anchor_mod(anchor_add(root_pc, fifth_interval), anchor_int(12));
-    AnchorVal _anc_t43 = 0;
-    __builtin_memcpy(&_anc_t43, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_int(0)), 8);
-    AnchorVal lowest = _anc_t43;
+    AnchorVal _anc_t44 = *(AnchorVal*)((char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_int(0)));
+    AnchorVal lowest = _anc_t44;
     {
         AnchorVal k = anchor_int(1);
         while (_ANCH_IVAL(anchor_lt(k, count))) {
-            AnchorVal _anc_t44 = 0;
-            __builtin_memcpy(&_anc_t44, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(k, anchor_int(8))), 8);
-            if (_ANCH_IVAL(anchor_lt(_anc_t44, lowest))) {
-                AnchorVal _anc_t45 = 0;
-                __builtin_memcpy(&_anc_t45, (char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(k, anchor_int(8))), 8);
-                lowest = _anc_t45;
+            AnchorVal _anc_t45 = *(AnchorVal*)((char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(k, anchor_int(8))));
+            if (_ANCH_IVAL(anchor_lt(_anc_t45, lowest))) {
+                AnchorVal _anc_t46 = *(AnchorVal*)((char*)_ANCH_HPTR(notes) + _ANCH_IVAL(anchor_mul(k, anchor_int(8))));
+                lowest = _anc_t46;
             }
             k = anchor_add(k, anchor_int(1));
         }
@@ -765,83 +747,96 @@ AnchorVal identify_chord(AnchorVal notes, AnchorVal count, AnchorVal note_names,
     if (_ANCH_IVAL(anchor_eq(lowest_pc, fifth_pc))) {
         inversion = anchor_ext((void*)"2nd inversion");
     }
-    AnchorVal _anc_t46 = 0;
-    __builtin_memcpy(&_anc_t46, (char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_mul(root_pc, anchor_int(8))), 8);
-    AnchorVal root_name = _anc_t46;
+    AnchorVal _anc_t47 = *(AnchorVal*)((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_mul(root_pc, anchor_int(8))));
+    AnchorVal root_name = _anc_t47;
     sprintf(((char*)_anch_ptr(result)), "%s%s %s", ((char*)_anch_ptr(root_name)), ((char*)_anch_ptr(chord_type_str)), ((char*)_anch_ptr(inversion)));
     return result;
 }
 
 AnchorVal parse_args(AnchorVal argc, AnchorVal argv) {
     AnchorVal a = anchor_alloc(ANCHOR_SIZEOF_Args);
-    { AnchorVal _anc_t47 = anchor_int(0);
-      __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_debug, &_anc_t47, ANCHOR_SIZE_Args_debug); }
-    ANCHOR_NIL;
     { AnchorVal _anc_t48 = anchor_int(0);
-      __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_select_device, &_anc_t48, ANCHOR_SIZE_Args_select_device); }
+      memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_debug, &_anc_t48, ANCHOR_SIZE_Args_debug); }
     ANCHOR_NIL;
-    { AnchorVal _anc_t49 = anchor_int(-1);
-      __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_lesson_num, &_anc_t49, ANCHOR_SIZE_Args_lesson_num); }
+    { AnchorVal _anc_t49 = anchor_int(0);
+      memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_select_device, &_anc_t49, ANCHOR_SIZE_Args_select_device); }
     ANCHOR_NIL;
-    { AnchorVal _anc_t50 = anchor_int(0);
-      __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_list_lessons, &_anc_t50, ANCHOR_SIZE_Args_list_lessons); }
+    { AnchorVal _anc_t50 = anchor_int(-1);
+      memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_lesson_num, &_anc_t50, ANCHOR_SIZE_Args_lesson_num); }
     ANCHOR_NIL;
     { AnchorVal _anc_t51 = anchor_int(0);
-      __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_help, &_anc_t51, ANCHOR_SIZE_Args_help); }
+      memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_list_lessons, &_anc_t51, ANCHOR_SIZE_Args_list_lessons); }
+    ANCHOR_NIL;
+    { AnchorVal _anc_t52 = anchor_int(0);
+      memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_help, &_anc_t52, ANCHOR_SIZE_Args_help); }
     ANCHOR_NIL;
     {
         AnchorVal i = anchor_int(1);
         while (_ANCH_IVAL(anchor_lt(i, argc))) {
-            AnchorVal _anc_t52 = 0;
-            __builtin_memcpy(&_anc_t52, (char*)_ANCH_HPTR(argv) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
-            AnchorVal arg = anchor_ext((char*)_anch_ptr(_anc_t52));
+            AnchorVal _anc_t53 = *(AnchorVal*)((char*)_ANCH_HPTR(argv) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))));
+            AnchorVal arg = anchor_ext((char*)_anch_ptr(_anc_t53));
             int _anc_t54_raw = strcmp(((const char*)_anch_ptr(arg)), "-d");
             AnchorVal _anc_t54 = anchor_int((intptr_t)_anc_t54_raw);
-            if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(_anc_t54, anchor_int(0)) || ({ int _anc_t53_raw = strcmp(((const char*)_anch_ptr(arg)), "--debug");
-AnchorVal _anc_t53 = anchor_int((intptr_t)_anc_t53_raw);
-(AnchorVal)!!anchor_eq(_anc_t53, anchor_int(0)); })))) {
-                { AnchorVal _anc_t55 = anchor_int(1);
-                  __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_debug, &_anc_t55, ANCHOR_SIZE_Args_debug); }
+            AnchorVal _anc_t56 = (AnchorVal)(!!anchor_eq(_anc_t54, anchor_int(0)));
+            if (!_anc_t56) {
+                int _anc_t55_raw = strcmp(((const char*)_anch_ptr(arg)), "--debug");
+                AnchorVal _anc_t55 = anchor_int((intptr_t)_anc_t55_raw);
+                _anc_t56 = (AnchorVal)(!!anchor_eq(_anc_t55, anchor_int(0)));
+            }
+            if (_ANCH_IVAL(_anc_t56)) {
+                { AnchorVal _anc_t57 = anchor_int(1);
+                  memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_debug, &_anc_t57, ANCHOR_SIZE_Args_debug); }
                 ANCHOR_NIL;
             }
-            int _anc_t57_raw = strcmp(((const char*)_anch_ptr(arg)), "-s");
-            AnchorVal _anc_t57 = anchor_int((intptr_t)_anc_t57_raw);
-            if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(_anc_t57, anchor_int(0)) || ({ int _anc_t56_raw = strcmp(((const char*)_anch_ptr(arg)), "--select-device");
-AnchorVal _anc_t56 = anchor_int((intptr_t)_anc_t56_raw);
-(AnchorVal)!!anchor_eq(_anc_t56, anchor_int(0)); })))) {
-                { AnchorVal _anc_t58 = anchor_int(1);
-                  __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_select_device, &_anc_t58, ANCHOR_SIZE_Args_select_device); }
-                ANCHOR_NIL;
+            int _anc_t58_raw = strcmp(((const char*)_anch_ptr(arg)), "-s");
+            AnchorVal _anc_t58 = anchor_int((intptr_t)_anc_t58_raw);
+            AnchorVal _anc_t60 = (AnchorVal)(!!anchor_eq(_anc_t58, anchor_int(0)));
+            if (!_anc_t60) {
+                int _anc_t59_raw = strcmp(((const char*)_anch_ptr(arg)), "--select-device");
+                AnchorVal _anc_t59 = anchor_int((intptr_t)_anc_t59_raw);
+                _anc_t60 = (AnchorVal)(!!anchor_eq(_anc_t59, anchor_int(0)));
             }
-            int _anc_t60_raw = strcmp(((const char*)_anch_ptr(arg)), "-l");
-            AnchorVal _anc_t60 = anchor_int((intptr_t)_anc_t60_raw);
-            if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(_anc_t60, anchor_int(0)) || ({ int _anc_t59_raw = strcmp(((const char*)_anch_ptr(arg)), "--list");
-AnchorVal _anc_t59 = anchor_int((intptr_t)_anc_t59_raw);
-(AnchorVal)!!anchor_eq(_anc_t59, anchor_int(0)); })))) {
+            if (_ANCH_IVAL(_anc_t60)) {
                 { AnchorVal _anc_t61 = anchor_int(1);
-                  __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_list_lessons, &_anc_t61, ANCHOR_SIZE_Args_list_lessons); }
+                  memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_select_device, &_anc_t61, ANCHOR_SIZE_Args_select_device); }
                 ANCHOR_NIL;
             }
-            int _anc_t63_raw = strcmp(((const char*)_anch_ptr(arg)), "-h");
-            AnchorVal _anc_t63 = anchor_int((intptr_t)_anc_t63_raw);
-            if (_ANCH_IVAL((AnchorVal)(!!anchor_eq(_anc_t63, anchor_int(0)) || ({ int _anc_t62_raw = strcmp(((const char*)_anch_ptr(arg)), "--help");
-AnchorVal _anc_t62 = anchor_int((intptr_t)_anc_t62_raw);
-(AnchorVal)!!anchor_eq(_anc_t62, anchor_int(0)); })))) {
-                { AnchorVal _anc_t64 = anchor_int(1);
-                  __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_help, &_anc_t64, ANCHOR_SIZE_Args_help); }
+            int _anc_t62_raw = strcmp(((const char*)_anch_ptr(arg)), "-l");
+            AnchorVal _anc_t62 = anchor_int((intptr_t)_anc_t62_raw);
+            AnchorVal _anc_t64 = (AnchorVal)(!!anchor_eq(_anc_t62, anchor_int(0)));
+            if (!_anc_t64) {
+                int _anc_t63_raw = strcmp(((const char*)_anch_ptr(arg)), "--list");
+                AnchorVal _anc_t63 = anchor_int((intptr_t)_anc_t63_raw);
+                _anc_t64 = (AnchorVal)(!!anchor_eq(_anc_t63, anchor_int(0)));
+            }
+            if (_ANCH_IVAL(_anc_t64)) {
+                { AnchorVal _anc_t65 = anchor_int(1);
+                  memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_list_lessons, &_anc_t65, ANCHOR_SIZE_Args_list_lessons); }
                 ANCHOR_NIL;
             }
-            int _anc_t65_raw = strcmp(((const char*)_anch_ptr(arg)), "--lesson");
-            AnchorVal _anc_t65 = anchor_int((intptr_t)_anc_t65_raw);
-            if (_ANCH_IVAL(anchor_eq(_anc_t65, anchor_int(0)))) {
+            int _anc_t66_raw = strcmp(((const char*)_anch_ptr(arg)), "-h");
+            AnchorVal _anc_t66 = anchor_int((intptr_t)_anc_t66_raw);
+            AnchorVal _anc_t68 = (AnchorVal)(!!anchor_eq(_anc_t66, anchor_int(0)));
+            if (!_anc_t68) {
+                int _anc_t67_raw = strcmp(((const char*)_anch_ptr(arg)), "--help");
+                AnchorVal _anc_t67 = anchor_int((intptr_t)_anc_t67_raw);
+                _anc_t68 = (AnchorVal)(!!anchor_eq(_anc_t67, anchor_int(0)));
+            }
+            if (_ANCH_IVAL(_anc_t68)) {
+                { AnchorVal _anc_t69 = anchor_int(1);
+                  memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_help, &_anc_t69, ANCHOR_SIZE_Args_help); }
+                ANCHOR_NIL;
+            }
+            int _anc_t70_raw = strcmp(((const char*)_anch_ptr(arg)), "--lesson");
+            AnchorVal _anc_t70 = anchor_int((intptr_t)_anc_t70_raw);
+            if (_ANCH_IVAL(anchor_eq(_anc_t70, anchor_int(0)))) {
                 if (_ANCH_IVAL(anchor_lt(i, anchor_sub(argc, anchor_int(1))))) {
                     i = anchor_add(i, anchor_int(1));
-                    AnchorVal _anc_t66 = 0;
-                    __builtin_memcpy(&_anc_t66, (char*)_ANCH_HPTR(argv) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
-                    int _anc_t67_raw = atoi(((char*)_anch_ptr(_anc_t66)));
-                    AnchorVal _anc_t67 = anchor_int((intptr_t)_anc_t67_raw);
-                    { AnchorVal _anc_t68 = _anc_t67;
-                      __builtin_memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_lesson_num, &_anc_t68, ANCHOR_SIZE_Args_lesson_num); }
+                    AnchorVal _anc_t71 = *(AnchorVal*)((char*)_ANCH_HPTR(argv) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))));
+                    int _anc_t72_raw = atoi(((char*)_anch_ptr(_anc_t71)));
+                    AnchorVal _anc_t72 = anchor_int((intptr_t)_anc_t72_raw);
+                    { AnchorVal _anc_t73 = _anc_t72;
+                      memcpy((char*)_ANCH_HPTR(a) + ANCHOR_OFFSET_Args_lesson_num, &_anc_t73, ANCHOR_SIZE_Args_lesson_num); }
                     ANCHOR_NIL;
                 }
             }
@@ -869,20 +864,18 @@ AnchorVal print_lesson_list(AnchorVal lessons, AnchorVal num_lessons) {
         AnchorVal i = anchor_int(0);
         while (_ANCH_IVAL(anchor_lt(i, num_lessons))) {
             AnchorVal les = anchor_add(lessons, anchor_mul(i, anchor_int(24)));
-            AnchorVal _anc_t69 = 0;
-            __builtin_memcpy(&_anc_t69, (char*)_ANCH_HPTR(les) + ANCHOR_OFFSET_Lesson_name, ANCHOR_SIZE_Lesson_name);
-            AnchorVal name = _anc_t69;
-            AnchorVal _anc_t70 = 0;
-            __builtin_memcpy(&_anc_t70, (char*)_ANCH_HPTR(les) + ANCHOR_OFFSET_Lesson_num_exercises, ANCHOR_SIZE_Lesson_num_exercises);
-            AnchorVal n_ex = _anc_t70;
+            AnchorVal _anc_t74 = *(AnchorVal*)((char*)_ANCH_HPTR(les) + ANCHOR_OFFSET_Lesson_name);
+            AnchorVal name = _anc_t74;
+            AnchorVal _anc_t75 = *(AnchorVal*)((char*)_ANCH_HPTR(les) + ANCHOR_OFFSET_Lesson_num_exercises);
+            AnchorVal n_ex = _anc_t75;
             printf("  \x1B[93m%d\x1B[0m. \x1B[96m%s\x1B[0m", (int)_ANCH_IVAL(anchor_add(i, anchor_int(1))), ((char*)_anch_ptr(name)));
-            AnchorVal _anc_t71;
+            AnchorVal _anc_t76;
             if (_ANCH_IVAL(anchor_eq(n_ex, anchor_int(1)))) {
-                _anc_t71 = anchor_ext((void*)"");
+                _anc_t76 = anchor_ext((void*)"");
             } else {
-                _anc_t71 = anchor_ext((void*)"s");
+                _anc_t76 = anchor_ext((void*)"s");
             }
-            printf("  (%d exercise%s)\n", (int)_ANCH_IVAL(n_ex), ((char*)_anch_ptr(_anc_t71)));
+            printf("  (%d exercise%s)\n", (int)_ANCH_IVAL(n_ex), ((char*)_anch_ptr(_anc_t76)));
             i = anchor_add(i, anchor_int(1));
         }
     }
@@ -892,24 +885,24 @@ AnchorVal print_lesson_list(AnchorVal lessons, AnchorVal num_lessons) {
 
 AnchorVal select_lesson_menu(AnchorVal lessons, AnchorVal num_lessons) {
     {
-        char _anc_arena__anc_t72_buf[ANCHOR_DEFAULT_ARENA_CAP];
-        _AnchorArena _anc_arena__anc_t72 = {_anc_arena__anc_t72_buf, ANCHOR_DEFAULT_ARENA_CAP, 0, 0, _anchor_arena_top};
-        _anchor_arena_top = &_anc_arena__anc_t72;
+        char _anc_arena__anc_t77_buf[ANCHOR_DEFAULT_ARENA_CAP];
+        _AnchorArena _anc_arena__anc_t77 = {_anc_arena__anc_t77_buf, ANCHOR_DEFAULT_ARENA_CAP, 0, 0, _anchor_arena_top};
+        _anchor_arena_top = &_anc_arena__anc_t77;
         print_lesson_list(lessons, num_lessons);
         printf("Enter lesson number: ");
         AnchorVal buf = anchor_alloc(16);
         fgets(((char*)_anch_ptr(buf)), 16, ((void*)_anch_ptr(anchor_int((intptr_t)(stdin)))));
-        int _anc_t73_raw = atoi(((char*)_anch_ptr(buf)));
-        AnchorVal _anc_t73 = anchor_int((intptr_t)_anc_t73_raw);
-        AnchorVal n = anchor_sub(_anc_t73, anchor_int(1));
+        int _anc_t78_raw = atoi(((char*)_anch_ptr(buf)));
+        AnchorVal _anc_t78 = anchor_int((intptr_t)_anc_t78_raw);
+        AnchorVal n = anchor_sub(_anc_t78, anchor_int(1));
         if (_ANCH_IVAL((AnchorVal)(!!anchor_lt(n, anchor_int(0)) || !!anchor_ge(n, num_lessons)))) {
             printf("Invalid selection, defaulting to lesson 1\n");
-            _anchor_arena_top = _anc_arena__anc_t72.prev;
+            _anchor_arena_top = _anc_arena__anc_t77.prev;
             return anchor_int(0);
         }
-        _anchor_arena_top = _anc_arena__anc_t72.prev;
+        _anchor_arena_top = _anc_arena__anc_t77.prev;
         return n;
-        _anchor_arena_top = _anc_arena__anc_t72.prev;
+        _anchor_arena_top = _anc_arena__anc_t77.prev;
     }
     return anchor_int(0);
 }
@@ -919,12 +912,10 @@ AnchorVal print_progression_line(AnchorVal prog, AnchorVal prog_len, AnchorVal n
     {
         AnchorVal i = anchor_int(0);
         while (_ANCH_IVAL(anchor_lt(i, prog_len))) {
-            AnchorVal _anc_t74 = 0;
-            __builtin_memcpy(&_anc_t74, (char*)_ANCH_HPTR(prog) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
-            AnchorVal degree = _anc_t74;
-            AnchorVal _anc_t75 = 0;
-            __builtin_memcpy(&_anc_t75, (char*)_ANCH_HPTR(chord_bufs) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
-            printf(" \x1B[93m%s\x1B[0m: \x1B[96m%s\x1B[0m", ((char*)_anch_ptr(degree_roman(degree))), ((char*)_anch_ptr(_anc_t75)));
+            AnchorVal _anc_t79 = *(AnchorVal*)((char*)_ANCH_HPTR(prog) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))));
+            AnchorVal degree = _anc_t79;
+            AnchorVal _anc_t80 = *(AnchorVal*)((char*)_ANCH_HPTR(chord_bufs) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))));
+            printf(" \x1B[93m%s\x1B[0m: \x1B[96m%s\x1B[0m", ((char*)_anch_ptr(degree_roman(degree))), ((char*)_anch_ptr(_anc_t80)));
             if (_ANCH_IVAL(anchor_lt(i, anchor_sub(prog_len, anchor_int(1))))) {
                 printf("  ");
             }
@@ -935,135 +926,162 @@ AnchorVal print_progression_line(AnchorVal prog, AnchorVal prog_len, AnchorVal n
     return anchor_int(0);
 }
 
+AnchorVal challenge(AnchorVal degree, AnchorVal target, AnchorVal midi, AnchorVal event, AnchorVal active_notes, AnchorVal note_count, AnchorVal last_notes, AnchorVal last_count, AnchorVal note_names, AnchorVal debug) {
+    printf("Play \x1B[93m%s\x1B[0m: \x1B[96m%s\x1B[0m\n", ((char*)_anch_ptr(degree_roman(degree))), ((char*)_anch_ptr(target)));
+    { AnchorVal _anc_t81 = anchor_int(0);
+      memcpy((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t81, sizeof(AnchorVal)); }
+    ANCHOR_NIL;
+    { AnchorVal _anc_t82 = anchor_int(0);
+      memcpy((char*)_ANCH_HPTR(last_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t82, sizeof(AnchorVal)); }
+    ANCHOR_NIL;
+    read_chord(midi, event, active_notes, note_count, last_notes, last_count, debug);
+    AnchorVal id_buf = anchor_alloc(32);
+    AnchorVal _anc_t83 = *(AnchorVal*)((char*)_ANCH_HPTR(last_count) + _ANCH_IVAL(anchor_int(0)));
+    AnchorVal identified = identify_chord(last_notes, _anc_t83, note_names, id_buf);
+    AnchorVal _anc_t85 = (AnchorVal)(!!identified);
+    if (_anc_t85) {
+        int _anc_t84_raw = strcmp(((char*)_anch_ptr(identified)), ((char*)_anch_ptr(target)));
+        AnchorVal _anc_t84 = anchor_int((intptr_t)_anc_t84_raw);
+        _anc_t85 = (AnchorVal)(!!anchor_eq(_anc_t84, anchor_int(0)));
+    }
+    if (_ANCH_IVAL(_anc_t85)) {
+        printf("\x1B[92mCorrect!\x1B[0m\n");
+        return anchor_int(1);
+    }
+    if (_ANCH_IVAL(identified)) {
+        printf("That's \x1B[91m%s\x1B[0m, try again\n", ((char*)_anch_ptr(identified)));
+    } else {
+        printf("\x1B[93mUnknown chord\x1B[0m, try again\n");
+    }
+    return anchor_int(0);
+}
+
 AnchorVal run_exercise(AnchorVal ex, AnchorVal midi, AnchorVal event, AnchorVal active_notes, AnchorVal note_count, AnchorVal last_notes, AnchorVal last_count, AnchorVal note_names, AnchorVal debug) {
-    AnchorVal _anc_t76 = 0;
-    __builtin_memcpy(&_anc_t76, (char*)_ANCH_HPTR(ex) + ANCHOR_OFFSET_Exercise_num_keys, ANCHOR_SIZE_Exercise_num_keys);
-    AnchorVal num_keys = _anc_t76;
-    AnchorVal _anc_t77 = 0;
-    __builtin_memcpy(&_anc_t77, (char*)_ANCH_HPTR(ex) + ANCHOR_OFFSET_Exercise_keys, ANCHOR_SIZE_Exercise_keys);
-    AnchorVal keys = _anc_t77;
-    AnchorVal _anc_t78 = 0;
-    __builtin_memcpy(&_anc_t78, (char*)_ANCH_HPTR(ex) + ANCHOR_OFFSET_Exercise_prog_len, ANCHOR_SIZE_Exercise_prog_len);
-    AnchorVal prog_len = _anc_t78;
-    AnchorVal _anc_t79 = 0;
-    __builtin_memcpy(&_anc_t79, (char*)_ANCH_HPTR(ex) + ANCHOR_OFFSET_Exercise_progression, ANCHOR_SIZE_Exercise_progression);
-    AnchorVal prog = _anc_t79;
-    AnchorVal _anc_t80 = 0;
-    __builtin_memcpy(&_anc_t80, (char*)_ANCH_HPTR(ex) + ANCHOR_OFFSET_Exercise_reps, ANCHOR_SIZE_Exercise_reps);
-    AnchorVal reps = _anc_t80;
-    int _anc_t81_raw = rand();
-    AnchorVal _anc_t81 = anchor_int((intptr_t)_anc_t81_raw);
-    AnchorVal key_idx = anchor_mod(_anc_t81, num_keys);
-    AnchorVal _anc_t82 = 0;
-    __builtin_memcpy(&_anc_t82, (char*)_ANCH_HPTR(keys) + _ANCH_IVAL(anchor_mul(key_idx, anchor_int(8))), 8);
-    AnchorVal key_id = _anc_t82;
-    AnchorVal inv_buf = anchor_alloc((size_t)_ANCH_IVAL(anchor_mul(prog_len, anchor_int(8))));
-    {
-        AnchorVal i = anchor_int(0);
-        while (_ANCH_IVAL(anchor_lt(i, prog_len))) {
-            int _anc_t83_raw = rand();
-            AnchorVal _anc_t83 = anchor_int((intptr_t)_anc_t83_raw);
-            { AnchorVal _anc_t84 = anchor_mod(_anc_t83, anchor_int(3));
-              __builtin_memcpy((char*)_ANCH_HPTR(inv_buf) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), &_anc_t84, sizeof(AnchorVal)); }
-            ANCHOR_NIL;
-            i = anchor_add(i, anchor_int(1));
-        }
-    }
-    AnchorVal chord_bufs = anchor_alloc((size_t)_ANCH_IVAL(anchor_mul(prog_len, anchor_int(8))));
-    {
-        AnchorVal i = anchor_int(0);
-        while (_ANCH_IVAL(anchor_lt(i, prog_len))) {
-            AnchorVal cstr = anchor_alloc(32);
-            AnchorVal _anc_t85 = 0;
-            __builtin_memcpy(&_anc_t85, (char*)_ANCH_HPTR(inv_buf) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
-            AnchorVal _anc_t86 = 0;
-            __builtin_memcpy(&_anc_t86, (char*)_ANCH_HPTR(prog) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
-            chord_name_for_degree(key_id, _anc_t86, _anc_t85, note_names, cstr);
-            { AnchorVal _anc_t87 = cstr;
-              __builtin_memcpy((char*)_ANCH_HPTR(chord_bufs) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), &_anc_t87, sizeof(AnchorVal)); }
-            ANCHOR_NIL;
-            i = anchor_add(i, anchor_int(1));
-        }
-    }
+    AnchorVal _anc_t86 = *(AnchorVal*)((char*)_ANCH_HPTR(ex) + ANCHOR_OFFSET_Exercise_num_keys);
+    AnchorVal num_keys = _anc_t86;
+    AnchorVal _anc_t87 = *(AnchorVal*)((char*)_ANCH_HPTR(ex) + ANCHOR_OFFSET_Exercise_keys);
+    AnchorVal keys = _anc_t87;
+    AnchorVal _anc_t88 = *(AnchorVal*)((char*)_ANCH_HPTR(ex) + ANCHOR_OFFSET_Exercise_prog_len);
+    AnchorVal prog_len = _anc_t88;
+    AnchorVal _anc_t89 = *(AnchorVal*)((char*)_ANCH_HPTR(ex) + ANCHOR_OFFSET_Exercise_progression);
+    AnchorVal prog = _anc_t89;
+    AnchorVal _anc_t90 = *(AnchorVal*)((char*)_ANCH_HPTR(ex) + ANCHOR_OFFSET_Exercise_reps);
+    AnchorVal reps = _anc_t90;
+    AnchorVal random_mode = anchor_eq(prog_len, anchor_int(0));
+    int _anc_t91_raw = rand();
+    AnchorVal _anc_t91 = anchor_int((intptr_t)_anc_t91_raw);
+    AnchorVal key_idx = anchor_mod(_anc_t91, num_keys);
+    AnchorVal _anc_t92 = *(AnchorVal*)((char*)_ANCH_HPTR(keys) + _ANCH_IVAL(anchor_mul(key_idx, anchor_int(8))));
+    AnchorVal key_id = _anc_t92;
     AnchorVal key_buf = anchor_alloc(32);
     key_name(key_id, note_names, key_buf);
-    printf("\nKey: \x1B[96m%s\x1B[0m  |  ", ((char*)_anch_ptr(key_buf)));
-    {
-        AnchorVal i = anchor_int(0);
-        while (_ANCH_IVAL(anchor_lt(i, prog_len))) {
-            AnchorVal _anc_t88 = 0;
-            __builtin_memcpy(&_anc_t88, (char*)_ANCH_HPTR(prog) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), 8);
-            printf("\x1B[93m%s\x1B[0m", ((char*)_anch_ptr(degree_roman(_anc_t88))));
-            if (_ANCH_IVAL(anchor_lt(i, anchor_sub(prog_len, anchor_int(1))))) {
-                printf(" - ");
-            }
-            i = anchor_add(i, anchor_int(1));
-        }
-    }
-    printf("\n");
-    print_progression_line(prog, prog_len, note_names, key_id, chord_bufs);
-    printf("\n");
-    AnchorVal rounds_done = anchor_int(0);
-    while (_ANCH_IVAL((AnchorVal)(!!anchor_eq(reps, anchor_int(-1)) || !!anchor_lt(rounds_done, reps)))) {
-        AnchorVal chord_idx = anchor_int(0);
-        while (_ANCH_IVAL(anchor_lt(chord_idx, prog_len))) {
+    if (_ANCH_IVAL(random_mode)) {
+        printf("\nKey: \x1B[96m%s\x1B[0m  |  \x1B[93mRandom chords\x1B[0m\n\n", ((char*)_anch_ptr(key_buf)));
+        AnchorVal rounds_done = anchor_int(0);
+        while (_ANCH_IVAL((AnchorVal)(!!anchor_eq(reps, anchor_int(-1)) || !!anchor_lt(rounds_done, reps)))) {
             {
-                size_t _anc_cp__anc_t89_used = _anchor_arena_top->used;
-                size_t _anc_cp__anc_t89_prev = _anchor_arena_top->checkpoint;
+                size_t _anc_cp__anc_t93_used = _anchor_arena_top->used;
+                size_t _anc_cp__anc_t93_prev = _anchor_arena_top->checkpoint;
                 _anchor_arena_top->checkpoint = _anchor_arena_top->used;
-                AnchorVal _anc_t90 = 0;
-                __builtin_memcpy(&_anc_t90, (char*)_ANCH_HPTR(prog) + _ANCH_IVAL(anchor_mul(chord_idx, anchor_int(8))), 8);
-                AnchorVal degree = _anc_t90;
-                AnchorVal _anc_t91 = 0;
-                __builtin_memcpy(&_anc_t91, (char*)_ANCH_HPTR(chord_bufs) + _ANCH_IVAL(anchor_mul(chord_idx, anchor_int(8))), 8);
-                AnchorVal target = _anc_t91;
-                printf("Play \x1B[93m%s\x1B[0m: \x1B[96m%s\x1B[0m\n", ((char*)_anch_ptr(degree_roman(degree))), ((char*)_anch_ptr(target)));
-                { AnchorVal _anc_t92 = anchor_int(0);
-                  __builtin_memcpy((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t92, sizeof(AnchorVal)); }
-                ANCHOR_NIL;
-                { AnchorVal _anc_t93 = anchor_int(0);
-                  __builtin_memcpy((char*)_ANCH_HPTR(last_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t93, sizeof(AnchorVal)); }
-                ANCHOR_NIL;
-                read_chord(midi, event, active_notes, note_count, last_notes, last_count, debug);
-                AnchorVal id_buf = anchor_alloc(32);
-                AnchorVal _anc_t94 = 0;
-                __builtin_memcpy(&_anc_t94, (char*)_ANCH_HPTR(last_count) + _ANCH_IVAL(anchor_int(0)), 8);
-                AnchorVal identified = identify_chord(last_notes, _anc_t94, note_names, id_buf);
-                if (_ANCH_IVAL((AnchorVal)(!!identified && ({ int _anc_t95_raw = strcmp(((char*)_anch_ptr(identified)), ((char*)_anch_ptr(target)));
-AnchorVal _anc_t95 = anchor_int((intptr_t)_anc_t95_raw);
-(AnchorVal)!!anchor_eq(_anc_t95, anchor_int(0)); })))) {
-                    printf("\x1B[92mCorrect!\x1B[0m\n");
-                    chord_idx = anchor_add(chord_idx, anchor_int(1));
-                } else {
-                    if (_ANCH_IVAL(identified)) {
-                        printf("That's \x1B[91m%s\x1B[0m, try again\n", ((char*)_anch_ptr(identified)));
-                    } else {
-                        printf("\x1B[93mUnknown chord\x1B[0m, try again\n");
+                int _anc_t94_raw = rand();
+                AnchorVal _anc_t94 = anchor_int((intptr_t)_anc_t94_raw);
+                AnchorVal degree = anchor_add(anchor_int(1), anchor_mod(_anc_t94, anchor_int(7)));
+                int _anc_t95_raw = rand();
+                AnchorVal _anc_t95 = anchor_int((intptr_t)_anc_t95_raw);
+                AnchorVal inv = anchor_mod(_anc_t95, anchor_int(3));
+                AnchorVal target = anchor_alloc(32);
+                chord_name_for_degree(key_id, degree, inv, note_names, target);
+                AnchorVal done = anchor_int(0);
+                while (_ANCH_IVAL(anchor_not(done))) {
+                    if (_ANCH_IVAL(challenge(degree, target, midi, event, active_notes, note_count, last_notes, last_count, note_names, debug))) {
+                        done = anchor_int(1);
                     }
                 }
-                _anchor_arena_top->used = _anc_cp__anc_t89_used;
-                _anchor_arena_top->checkpoint = _anc_cp__anc_t89_prev;
+                if (_ANCH_IVAL(anchor_ne(reps, anchor_int(-1)))) {
+                    rounds_done = anchor_add(rounds_done, anchor_int(1));
+                }
+                _anchor_arena_top->used = _anc_cp__anc_t93_used;
+                _anchor_arena_top->checkpoint = _anc_cp__anc_t93_prev;
             }
         }
-        if (_ANCH_IVAL(anchor_ne(reps, anchor_int(-1)))) {
-            rounds_done = anchor_add(rounds_done, anchor_int(1));
+    } else {
+        AnchorVal inv_buf = anchor_alloc((size_t)_ANCH_IVAL(anchor_mul(prog_len, anchor_int(8))));
+        {
+            AnchorVal i = anchor_int(0);
+            while (_ANCH_IVAL(anchor_lt(i, prog_len))) {
+                int _anc_t96_raw = rand();
+                AnchorVal _anc_t96 = anchor_int((intptr_t)_anc_t96_raw);
+                { AnchorVal _anc_t97 = anchor_mod(_anc_t96, anchor_int(3));
+                  memcpy((char*)_ANCH_HPTR(inv_buf) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), &_anc_t97, sizeof(AnchorVal)); }
+                ANCHOR_NIL;
+                i = anchor_add(i, anchor_int(1));
+            }
+        }
+        AnchorVal chord_bufs = anchor_alloc((size_t)_ANCH_IVAL(anchor_mul(prog_len, anchor_int(8))));
+        {
+            AnchorVal i = anchor_int(0);
+            while (_ANCH_IVAL(anchor_lt(i, prog_len))) {
+                AnchorVal cstr = anchor_alloc(32);
+                AnchorVal _anc_t98 = *(AnchorVal*)((char*)_ANCH_HPTR(inv_buf) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))));
+                AnchorVal _anc_t99 = *(AnchorVal*)((char*)_ANCH_HPTR(prog) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))));
+                chord_name_for_degree(key_id, _anc_t99, _anc_t98, note_names, cstr);
+                { AnchorVal _anc_t100 = cstr;
+                  memcpy((char*)_ANCH_HPTR(chord_bufs) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))), &_anc_t100, sizeof(AnchorVal)); }
+                ANCHOR_NIL;
+                i = anchor_add(i, anchor_int(1));
+            }
+        }
+        printf("\nKey: \x1B[96m%s\x1B[0m  |  ", ((char*)_anch_ptr(key_buf)));
+        {
+            AnchorVal i = anchor_int(0);
+            while (_ANCH_IVAL(anchor_lt(i, prog_len))) {
+                AnchorVal _anc_t101 = *(AnchorVal*)((char*)_ANCH_HPTR(prog) + _ANCH_IVAL(anchor_mul(i, anchor_int(8))));
+                printf("\x1B[93m%s\x1B[0m", ((char*)_anch_ptr(degree_roman(_anc_t101))));
+                if (_ANCH_IVAL(anchor_lt(i, anchor_sub(prog_len, anchor_int(1))))) {
+                    printf(" - ");
+                }
+                i = anchor_add(i, anchor_int(1));
+            }
+        }
+        printf("\n");
+        print_progression_line(prog, prog_len, note_names, key_id, chord_bufs);
+        printf("\n");
+        AnchorVal rounds_done = anchor_int(0);
+        while (_ANCH_IVAL((AnchorVal)(!!anchor_eq(reps, anchor_int(-1)) || !!anchor_lt(rounds_done, reps)))) {
+            AnchorVal chord_idx = anchor_int(0);
+            while (_ANCH_IVAL(anchor_lt(chord_idx, prog_len))) {
+                {
+                    size_t _anc_cp__anc_t102_used = _anchor_arena_top->used;
+                    size_t _anc_cp__anc_t102_prev = _anchor_arena_top->checkpoint;
+                    _anchor_arena_top->checkpoint = _anchor_arena_top->used;
+                    AnchorVal _anc_t103 = *(AnchorVal*)((char*)_ANCH_HPTR(prog) + _ANCH_IVAL(anchor_mul(chord_idx, anchor_int(8))));
+                    AnchorVal degree = _anc_t103;
+                    AnchorVal _anc_t104 = *(AnchorVal*)((char*)_ANCH_HPTR(chord_bufs) + _ANCH_IVAL(anchor_mul(chord_idx, anchor_int(8))));
+                    AnchorVal target = _anc_t104;
+                    if (_ANCH_IVAL(challenge(degree, target, midi, event, active_notes, note_count, last_notes, last_count, note_names, debug))) {
+                        chord_idx = anchor_add(chord_idx, anchor_int(1));
+                    }
+                    _anchor_arena_top->used = _anc_cp__anc_t102_used;
+                    _anchor_arena_top->checkpoint = _anc_cp__anc_t102_prev;
+                }
+            }
+            if (_ANCH_IVAL(anchor_ne(reps, anchor_int(-1)))) {
+                rounds_done = anchor_add(rounds_done, anchor_int(1));
+            }
         }
     }
     return anchor_int(0);
 }
 
 AnchorVal run_lesson(AnchorVal lesson, AnchorVal midi, AnchorVal event, AnchorVal active_notes, AnchorVal note_count, AnchorVal last_notes, AnchorVal last_count, AnchorVal note_names, AnchorVal debug) {
-    AnchorVal _anc_t96 = 0;
-    __builtin_memcpy(&_anc_t96, (char*)_ANCH_HPTR(lesson) + ANCHOR_OFFSET_Lesson_num_exercises, ANCHOR_SIZE_Lesson_num_exercises);
-    AnchorVal n_ex = _anc_t96;
-    AnchorVal _anc_t97 = 0;
-    __builtin_memcpy(&_anc_t97, (char*)_ANCH_HPTR(lesson) + ANCHOR_OFFSET_Lesson_exercises, ANCHOR_SIZE_Lesson_exercises);
-    AnchorVal exptrs = _anc_t97;
+    AnchorVal _anc_t105 = *(AnchorVal*)((char*)_ANCH_HPTR(lesson) + ANCHOR_OFFSET_Lesson_num_exercises);
+    AnchorVal n_ex = _anc_t105;
+    AnchorVal _anc_t106 = *(AnchorVal*)((char*)_ANCH_HPTR(lesson) + ANCHOR_OFFSET_Lesson_exercises);
+    AnchorVal exptrs = _anc_t106;
     AnchorVal ex_idx = anchor_int(0);
     while (_ANCH_IVAL(anchor_int(1))) {
-        AnchorVal _anc_t98 = 0;
-        __builtin_memcpy(&_anc_t98, (char*)_ANCH_HPTR(exptrs) + _ANCH_IVAL(anchor_mul(ex_idx, anchor_int(8))), 8);
-        AnchorVal ex = _anc_t98;
+        AnchorVal _anc_t107 = *(AnchorVal*)((char*)_ANCH_HPTR(exptrs) + _ANCH_IVAL(anchor_mul(ex_idx, anchor_int(8))));
+        AnchorVal ex = _anc_t107;
         run_exercise(ex, midi, event, active_notes, note_count, last_notes, last_count, note_names, debug);
         ex_idx = anchor_mod(anchor_add(ex_idx, anchor_int(1)), n_ex);
         if (_ANCH_IVAL(anchor_eq(ex_idx, anchor_int(0)))) {
@@ -1079,404 +1097,258 @@ int main(int _argc_raw, char** _argv_raw) {
     AnchorVal argc = anchor_int(_argc_raw);
     AnchorVal argv = anchor_ext((void*)_argv_raw);
     {
-        char _anc_arena__anc_t99_buf[ANCHOR_DEFAULT_ARENA_CAP];
-        _AnchorArena _anc_arena__anc_t99 = {_anc_arena__anc_t99_buf, ANCHOR_DEFAULT_ARENA_CAP, 0, 0, _anchor_arena_top};
-        _anchor_arena_top = &_anc_arena__anc_t99;
+        char _anc_arena__anc_t108_buf[ANCHOR_DEFAULT_ARENA_CAP];
+        _AnchorArena _anc_arena__anc_t108 = {_anc_arena__anc_t108_buf, ANCHOR_DEFAULT_ARENA_CAP, 0, 0, _anchor_arena_top};
+        _anchor_arena_top = &_anc_arena__anc_t108;
         SetConsoleOutputCP(65001);
-        int _anc_t100_raw = _fileno(((void*)_anch_ptr(anchor_int((intptr_t)(stdout)))));
-        AnchorVal _anc_t100 = anchor_int((intptr_t)_anc_t100_raw);
-        _setmode((int)_ANCH_IVAL(_anc_t100), 32768);
+        int _anc_t109_raw = _fileno(((void*)_anch_ptr(anchor_int((intptr_t)(stdout)))));
+        AnchorVal _anc_t109 = anchor_int((intptr_t)_anc_t109_raw);
+        _setmode((int)_ANCH_IVAL(_anc_t109), 32768);
         AnchorVal args = parse_args(argc, argv);
-        AnchorVal _anc_t101 = 0;
-        __builtin_memcpy(&_anc_t101, (char*)_ANCH_HPTR(args) + ANCHOR_OFFSET_Args_debug, ANCHOR_SIZE_Args_debug);
-        AnchorVal debug = _anc_t101;
-        AnchorVal _anc_t102 = 0;
-        __builtin_memcpy(&_anc_t102, (char*)_ANCH_HPTR(args) + ANCHOR_OFFSET_Args_select_device, ANCHOR_SIZE_Args_select_device);
-        AnchorVal select_device = _anc_t102;
-        AnchorVal _anc_t103 = 0;
-        __builtin_memcpy(&_anc_t103, (char*)_ANCH_HPTR(args) + ANCHOR_OFFSET_Args_lesson_num, ANCHOR_SIZE_Args_lesson_num);
-        AnchorVal lesson_num = _anc_t103;
-        AnchorVal _anc_t104 = 0;
-        __builtin_memcpy(&_anc_t104, (char*)_ANCH_HPTR(args) + ANCHOR_OFFSET_Args_list_lessons, ANCHOR_SIZE_Args_list_lessons);
-        AnchorVal list_lessons = _anc_t104;
-        AnchorVal _anc_t105 = 0;
-        __builtin_memcpy(&_anc_t105, (char*)_ANCH_HPTR(args) + ANCHOR_OFFSET_Args_help, ANCHOR_SIZE_Args_help);
-        AnchorVal help = _anc_t105;
+        AnchorVal _anc_t110 = *(AnchorVal*)((char*)_ANCH_HPTR(args) + ANCHOR_OFFSET_Args_debug);
+        AnchorVal debug = _anc_t110;
+        AnchorVal _anc_t111 = *(AnchorVal*)((char*)_ANCH_HPTR(args) + ANCHOR_OFFSET_Args_select_device);
+        AnchorVal select_device = _anc_t111;
+        AnchorVal _anc_t112 = *(AnchorVal*)((char*)_ANCH_HPTR(args) + ANCHOR_OFFSET_Args_lesson_num);
+        AnchorVal lesson_num = _anc_t112;
+        AnchorVal _anc_t113 = *(AnchorVal*)((char*)_ANCH_HPTR(args) + ANCHOR_OFFSET_Args_list_lessons);
+        AnchorVal list_lessons = _anc_t113;
+        AnchorVal _anc_t114 = *(AnchorVal*)((char*)_ANCH_HPTR(args) + ANCHOR_OFFSET_Args_help);
+        AnchorVal help = _anc_t114;
         if (_ANCH_IVAL(help)) {
             print_help();
-            _anchor_arena_top = _anc_arena__anc_t99.prev;
+            _anchor_arena_top = _anc_arena__anc_t108.prev;
             return 0;
         }
         AnchorVal note_names = anchor_alloc((size_t)_ANCH_IVAL(anchor_mul(anchor_int(12), anchor_int(8))));
-        { AnchorVal _anc_t106 = anchor_ext((void*)"C");
-          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(0)), &_anc_t106, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t115 = anchor_ext((void*)"C");
+          memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(0)), &_anc_t115, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t107 = anchor_ext((void*)"C♯");
-          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(8)), &_anc_t107, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t116 = anchor_ext((void*)"C♯");
+          memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(8)), &_anc_t116, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t108 = anchor_ext((void*)"D");
-          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(16)), &_anc_t108, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t117 = anchor_ext((void*)"D");
+          memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(16)), &_anc_t117, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t109 = anchor_ext((void*)"E♭");
-          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(24)), &_anc_t109, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t118 = anchor_ext((void*)"E♭");
+          memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(24)), &_anc_t118, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t110 = anchor_ext((void*)"E");
-          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(32)), &_anc_t110, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t119 = anchor_ext((void*)"E");
+          memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(32)), &_anc_t119, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t111 = anchor_ext((void*)"F");
-          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(40)), &_anc_t111, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t120 = anchor_ext((void*)"F");
+          memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(40)), &_anc_t120, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t112 = anchor_ext((void*)"F♯");
-          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(48)), &_anc_t112, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t121 = anchor_ext((void*)"F♯");
+          memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(48)), &_anc_t121, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t113 = anchor_ext((void*)"G");
-          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(56)), &_anc_t113, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t122 = anchor_ext((void*)"G");
+          memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(56)), &_anc_t122, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t114 = anchor_ext((void*)"A♭");
-          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(64)), &_anc_t114, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t123 = anchor_ext((void*)"A♭");
+          memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(64)), &_anc_t123, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t115 = anchor_ext((void*)"A");
-          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(72)), &_anc_t115, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t124 = anchor_ext((void*)"A");
+          memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(72)), &_anc_t124, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t116 = anchor_ext((void*)"B♭");
-          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(80)), &_anc_t116, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t125 = anchor_ext((void*)"B♭");
+          memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(80)), &_anc_t125, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t117 = anchor_ext((void*)"B");
-          __builtin_memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(88)), &_anc_t117, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t126 = anchor_ext((void*)"B");
+          memcpy((char*)_ANCH_HPTR(note_names) + _ANCH_IVAL(anchor_int(88)), &_anc_t126, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        AnchorVal all_lessons = anchor_alloc(96);
-        AnchorVal num_all_lessons = anchor_int(4);
-        AnchorVal _ks0_anc_190 = anchor_alloc(32);
-        { AnchorVal _anc_t118 = anchor_int(0);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks0_anc_190) + _ANCH_IVAL(anchor_int(0)), &_anc_t118, sizeof(AnchorVal)); }
+        AnchorVal all_lessons = anchor_alloc(120);
+        AnchorVal num_all_lessons = anchor_int(5);
+        AnchorVal _ks0_anc_192 = anchor_alloc(8);
+        { AnchorVal _anc_t127 = anchor_int(0);
+          memcpy((char*)_ANCH_HPTR(_ks0_anc_192) + _ANCH_IVAL(anchor_int(0)), &_anc_t127, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t119 = anchor_int(2);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks0_anc_190) + _ANCH_IVAL(anchor_int(8)), &_anc_t119, sizeof(AnchorVal)); }
+        AnchorVal _ex0_anc_192 = anchor_alloc(ANCHOR_SIZEOF_Exercise);
+        { AnchorVal _anc_t128 = _ks0_anc_192;
+          memcpy((char*)_ANCH_HPTR(_ex0_anc_192) + ANCHOR_OFFSET_Exercise_keys, &_anc_t128, ANCHOR_SIZE_Exercise_keys); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t120 = anchor_int(5);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks0_anc_190) + _ANCH_IVAL(anchor_int(16)), &_anc_t120, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t129 = anchor_int(1);
+          memcpy((char*)_ANCH_HPTR(_ex0_anc_192) + ANCHOR_OFFSET_Exercise_num_keys, &_anc_t129, ANCHOR_SIZE_Exercise_num_keys); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t121 = anchor_int(10);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks0_anc_190) + _ANCH_IVAL(anchor_int(24)), &_anc_t121, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t130 = anchor_int(0);
+          memcpy((char*)_ANCH_HPTR(_ex0_anc_192) + ANCHOR_OFFSET_Exercise_progression, &_anc_t130, ANCHOR_SIZE_Exercise_progression); }
         ANCHOR_NIL;
-        AnchorVal _pr0_anc_190 = anchor_alloc(32);
-        { AnchorVal _anc_t122 = anchor_int(1);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr0_anc_190) + _ANCH_IVAL(anchor_int(0)), &_anc_t122, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t131 = anchor_int(0);
+          memcpy((char*)_ANCH_HPTR(_ex0_anc_192) + ANCHOR_OFFSET_Exercise_prog_len, &_anc_t131, ANCHOR_SIZE_Exercise_prog_len); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t123 = anchor_int(5);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr0_anc_190) + _ANCH_IVAL(anchor_int(8)), &_anc_t123, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t132 = anchor_int(-1);
+          memcpy((char*)_ANCH_HPTR(_ex0_anc_192) + ANCHOR_OFFSET_Exercise_reps, &_anc_t132, ANCHOR_SIZE_Exercise_reps); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t124 = anchor_int(6);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr0_anc_190) + _ANCH_IVAL(anchor_int(16)), &_anc_t124, sizeof(AnchorVal)); }
+        AnchorVal _ep0_anc_192 = anchor_alloc(8);
+        { AnchorVal _anc_t133 = _ex0_anc_192;
+          memcpy((char*)_ANCH_HPTR(_ep0_anc_192) + _ANCH_IVAL(anchor_int(0)), &_anc_t133, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t125 = anchor_int(4);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr0_anc_190) + _ANCH_IVAL(anchor_int(24)), &_anc_t125, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t134 = anchor_ext((void*)"C major Triads");
+          memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(0)), &_anc_t134, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        AnchorVal _ex0_anc_190 = anchor_alloc(ANCHOR_SIZEOF_Exercise);
-        { AnchorVal _anc_t126 = _ks0_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex0_anc_190) + ANCHOR_OFFSET_Exercise_keys, &_anc_t126, ANCHOR_SIZE_Exercise_keys); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t127 = anchor_int(4);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex0_anc_190) + ANCHOR_OFFSET_Exercise_num_keys, &_anc_t127, ANCHOR_SIZE_Exercise_num_keys); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t128 = _pr0_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex0_anc_190) + ANCHOR_OFFSET_Exercise_progression, &_anc_t128, ANCHOR_SIZE_Exercise_progression); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t129 = anchor_int(4);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex0_anc_190) + ANCHOR_OFFSET_Exercise_prog_len, &_anc_t129, ANCHOR_SIZE_Exercise_prog_len); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t130 = anchor_int(10);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex0_anc_190) + ANCHOR_OFFSET_Exercise_reps, &_anc_t130, ANCHOR_SIZE_Exercise_reps); }
-        ANCHOR_NIL;
-        AnchorVal _ep0_anc_190 = anchor_alloc(8);
-        { AnchorVal _anc_t131 = _ex0_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ep0_anc_190) + _ANCH_IVAL(anchor_int(0)), &_anc_t131, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t132 = anchor_ext((void*)"I - V - VI - IV (Major)");
-          __builtin_memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(0)), &_anc_t132, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t133 = _ep0_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(8)), &_anc_t133, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t134 = anchor_int(1);
-          __builtin_memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(16)), &_anc_t134, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        AnchorVal _ks100_anc_190 = anchor_alloc(96);
-        { AnchorVal _anc_t135 = anchor_int(0);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks100_anc_190) + _ANCH_IVAL(anchor_int(0)), &_anc_t135, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t135 = _ep0_anc_192;
+          memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(8)), &_anc_t135, sizeof(AnchorVal)); }
         ANCHOR_NIL;
         { AnchorVal _anc_t136 = anchor_int(1);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks100_anc_190) + _ANCH_IVAL(anchor_int(8)), &_anc_t136, sizeof(AnchorVal)); }
+          memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(16)), &_anc_t136, sizeof(AnchorVal)); }
         ANCHOR_NIL;
+        AnchorVal _ks100_anc_192 = anchor_alloc(8);
         { AnchorVal _anc_t137 = anchor_int(2);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks100_anc_190) + _ANCH_IVAL(anchor_int(16)), &_anc_t137, sizeof(AnchorVal)); }
+          memcpy((char*)_ANCH_HPTR(_ks100_anc_192) + _ANCH_IVAL(anchor_int(0)), &_anc_t137, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t138 = anchor_int(3);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks100_anc_190) + _ANCH_IVAL(anchor_int(24)), &_anc_t138, sizeof(AnchorVal)); }
+        AnchorVal _ex100_anc_192 = anchor_alloc(ANCHOR_SIZEOF_Exercise);
+        { AnchorVal _anc_t138 = _ks100_anc_192;
+          memcpy((char*)_ANCH_HPTR(_ex100_anc_192) + ANCHOR_OFFSET_Exercise_keys, &_anc_t138, ANCHOR_SIZE_Exercise_keys); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t139 = anchor_int(4);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks100_anc_190) + _ANCH_IVAL(anchor_int(32)), &_anc_t139, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t139 = anchor_int(1);
+          memcpy((char*)_ANCH_HPTR(_ex100_anc_192) + ANCHOR_OFFSET_Exercise_num_keys, &_anc_t139, ANCHOR_SIZE_Exercise_num_keys); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t140 = anchor_int(5);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks100_anc_190) + _ANCH_IVAL(anchor_int(40)), &_anc_t140, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t140 = anchor_int(0);
+          memcpy((char*)_ANCH_HPTR(_ex100_anc_192) + ANCHOR_OFFSET_Exercise_progression, &_anc_t140, ANCHOR_SIZE_Exercise_progression); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t141 = anchor_int(6);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks100_anc_190) + _ANCH_IVAL(anchor_int(48)), &_anc_t141, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t141 = anchor_int(0);
+          memcpy((char*)_ANCH_HPTR(_ex100_anc_192) + ANCHOR_OFFSET_Exercise_prog_len, &_anc_t141, ANCHOR_SIZE_Exercise_prog_len); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t142 = anchor_int(7);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks100_anc_190) + _ANCH_IVAL(anchor_int(56)), &_anc_t142, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t142 = anchor_int(-1);
+          memcpy((char*)_ANCH_HPTR(_ex100_anc_192) + ANCHOR_OFFSET_Exercise_reps, &_anc_t142, ANCHOR_SIZE_Exercise_reps); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t143 = anchor_int(8);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks100_anc_190) + _ANCH_IVAL(anchor_int(64)), &_anc_t143, sizeof(AnchorVal)); }
+        AnchorVal _ep100_anc_192 = anchor_alloc(8);
+        { AnchorVal _anc_t143 = _ex100_anc_192;
+          memcpy((char*)_ANCH_HPTR(_ep100_anc_192) + _ANCH_IVAL(anchor_int(0)), &_anc_t143, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t144 = anchor_int(9);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks100_anc_190) + _ANCH_IVAL(anchor_int(72)), &_anc_t144, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t144 = anchor_ext((void*)"D major Triads");
+          memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(24)), &_anc_t144, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t145 = anchor_int(10);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks100_anc_190) + _ANCH_IVAL(anchor_int(80)), &_anc_t145, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t145 = _ep100_anc_192;
+          memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(32)), &_anc_t145, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t146 = anchor_int(11);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks100_anc_190) + _ANCH_IVAL(anchor_int(88)), &_anc_t146, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t146 = anchor_int(1);
+          memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(40)), &_anc_t146, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        AnchorVal _pr100_anc_190 = anchor_alloc(8);
-        { AnchorVal _anc_t147 = anchor_int(1);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr100_anc_190) + _ANCH_IVAL(anchor_int(0)), &_anc_t147, sizeof(AnchorVal)); }
+        AnchorVal _ks200_anc_192 = anchor_alloc(8);
+        { AnchorVal _anc_t147 = anchor_int(5);
+          memcpy((char*)_ANCH_HPTR(_ks200_anc_192) + _ANCH_IVAL(anchor_int(0)), &_anc_t147, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        AnchorVal _ex100_anc_190 = anchor_alloc(ANCHOR_SIZEOF_Exercise);
-        { AnchorVal _anc_t148 = _ks100_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex100_anc_190) + ANCHOR_OFFSET_Exercise_keys, &_anc_t148, ANCHOR_SIZE_Exercise_keys); }
+        AnchorVal _ex200_anc_192 = anchor_alloc(ANCHOR_SIZEOF_Exercise);
+        { AnchorVal _anc_t148 = _ks200_anc_192;
+          memcpy((char*)_ANCH_HPTR(_ex200_anc_192) + ANCHOR_OFFSET_Exercise_keys, &_anc_t148, ANCHOR_SIZE_Exercise_keys); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t149 = anchor_int(12);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex100_anc_190) + ANCHOR_OFFSET_Exercise_num_keys, &_anc_t149, ANCHOR_SIZE_Exercise_num_keys); }
+        { AnchorVal _anc_t149 = anchor_int(1);
+          memcpy((char*)_ANCH_HPTR(_ex200_anc_192) + ANCHOR_OFFSET_Exercise_num_keys, &_anc_t149, ANCHOR_SIZE_Exercise_num_keys); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t150 = _pr100_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex100_anc_190) + ANCHOR_OFFSET_Exercise_progression, &_anc_t150, ANCHOR_SIZE_Exercise_progression); }
+        { AnchorVal _anc_t150 = anchor_int(0);
+          memcpy((char*)_ANCH_HPTR(_ex200_anc_192) + ANCHOR_OFFSET_Exercise_progression, &_anc_t150, ANCHOR_SIZE_Exercise_progression); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t151 = anchor_int(1);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex100_anc_190) + ANCHOR_OFFSET_Exercise_prog_len, &_anc_t151, ANCHOR_SIZE_Exercise_prog_len); }
+        { AnchorVal _anc_t151 = anchor_int(0);
+          memcpy((char*)_ANCH_HPTR(_ex200_anc_192) + ANCHOR_OFFSET_Exercise_prog_len, &_anc_t151, ANCHOR_SIZE_Exercise_prog_len); }
         ANCHOR_NIL;
         { AnchorVal _anc_t152 = anchor_int(-1);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex100_anc_190) + ANCHOR_OFFSET_Exercise_reps, &_anc_t152, ANCHOR_SIZE_Exercise_reps); }
+          memcpy((char*)_ANCH_HPTR(_ex200_anc_192) + ANCHOR_OFFSET_Exercise_reps, &_anc_t152, ANCHOR_SIZE_Exercise_reps); }
         ANCHOR_NIL;
-        AnchorVal _ep100_anc_190 = anchor_alloc(8);
-        { AnchorVal _anc_t153 = _ex100_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ep100_anc_190) + _ANCH_IVAL(anchor_int(0)), &_anc_t153, sizeof(AnchorVal)); }
+        AnchorVal _ep200_anc_192 = anchor_alloc(8);
+        { AnchorVal _anc_t153 = _ex200_anc_192;
+          memcpy((char*)_ANCH_HPTR(_ep200_anc_192) + _ANCH_IVAL(anchor_int(0)), &_anc_t153, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t154 = anchor_ext((void*)"Free Play");
-          __builtin_memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(24)), &_anc_t154, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t154 = anchor_ext((void*)"F major Triads");
+          memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(48)), &_anc_t154, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t155 = _ep100_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(32)), &_anc_t155, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t155 = _ep200_anc_192;
+          memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(56)), &_anc_t155, sizeof(AnchorVal)); }
         ANCHOR_NIL;
         { AnchorVal _anc_t156 = anchor_int(1);
-          __builtin_memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(40)), &_anc_t156, sizeof(AnchorVal)); }
+          memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(64)), &_anc_t156, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        AnchorVal _ks200_anc_190 = anchor_alloc(40);
-        { AnchorVal _anc_t157 = anchor_int(0);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks200_anc_190) + _ANCH_IVAL(anchor_int(0)), &_anc_t157, sizeof(AnchorVal)); }
+        AnchorVal _ks300_anc_192 = anchor_alloc(8);
+        { AnchorVal _anc_t157 = anchor_int(10);
+          memcpy((char*)_ANCH_HPTR(_ks300_anc_192) + _ANCH_IVAL(anchor_int(0)), &_anc_t157, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t158 = anchor_int(7);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks200_anc_190) + _ANCH_IVAL(anchor_int(8)), &_anc_t158, sizeof(AnchorVal)); }
+        AnchorVal _ex300_anc_192 = anchor_alloc(ANCHOR_SIZEOF_Exercise);
+        { AnchorVal _anc_t158 = _ks300_anc_192;
+          memcpy((char*)_ANCH_HPTR(_ex300_anc_192) + ANCHOR_OFFSET_Exercise_keys, &_anc_t158, ANCHOR_SIZE_Exercise_keys); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t159 = anchor_int(2);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks200_anc_190) + _ANCH_IVAL(anchor_int(16)), &_anc_t159, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t159 = anchor_int(1);
+          memcpy((char*)_ANCH_HPTR(_ex300_anc_192) + ANCHOR_OFFSET_Exercise_num_keys, &_anc_t159, ANCHOR_SIZE_Exercise_num_keys); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t160 = anchor_int(9);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks200_anc_190) + _ANCH_IVAL(anchor_int(24)), &_anc_t160, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t160 = anchor_int(0);
+          memcpy((char*)_ANCH_HPTR(_ex300_anc_192) + ANCHOR_OFFSET_Exercise_progression, &_anc_t160, ANCHOR_SIZE_Exercise_progression); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t161 = anchor_int(4);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks200_anc_190) + _ANCH_IVAL(anchor_int(32)), &_anc_t161, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t161 = anchor_int(0);
+          memcpy((char*)_ANCH_HPTR(_ex300_anc_192) + ANCHOR_OFFSET_Exercise_prog_len, &_anc_t161, ANCHOR_SIZE_Exercise_prog_len); }
         ANCHOR_NIL;
-        AnchorVal _pr200_anc_190 = anchor_alloc(24);
-        { AnchorVal _anc_t162 = anchor_int(1);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr200_anc_190) + _ANCH_IVAL(anchor_int(0)), &_anc_t162, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t162 = anchor_int(-1);
+          memcpy((char*)_ANCH_HPTR(_ex300_anc_192) + ANCHOR_OFFSET_Exercise_reps, &_anc_t162, ANCHOR_SIZE_Exercise_reps); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t163 = anchor_int(4);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr200_anc_190) + _ANCH_IVAL(anchor_int(8)), &_anc_t163, sizeof(AnchorVal)); }
+        AnchorVal _ep300_anc_192 = anchor_alloc(8);
+        { AnchorVal _anc_t163 = _ex300_anc_192;
+          memcpy((char*)_ANCH_HPTR(_ep300_anc_192) + _ANCH_IVAL(anchor_int(0)), &_anc_t163, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t164 = anchor_int(5);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr200_anc_190) + _ANCH_IVAL(anchor_int(16)), &_anc_t164, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t164 = anchor_ext((void*)"B♭ major Triads");
+          memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(72)), &_anc_t164, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        AnchorVal _ex200_anc_190 = anchor_alloc(ANCHOR_SIZEOF_Exercise);
-        { AnchorVal _anc_t165 = _ks200_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex200_anc_190) + ANCHOR_OFFSET_Exercise_keys, &_anc_t165, ANCHOR_SIZE_Exercise_keys); }
+        { AnchorVal _anc_t165 = _ep300_anc_192;
+          memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(80)), &_anc_t165, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t166 = anchor_int(5);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex200_anc_190) + ANCHOR_OFFSET_Exercise_num_keys, &_anc_t166, ANCHOR_SIZE_Exercise_num_keys); }
+        { AnchorVal _anc_t166 = anchor_int(1);
+          memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(88)), &_anc_t166, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t167 = _pr200_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex200_anc_190) + ANCHOR_OFFSET_Exercise_progression, &_anc_t167, ANCHOR_SIZE_Exercise_progression); }
+        AnchorVal _ks400_anc_192 = anchor_alloc(32);
+        { AnchorVal _anc_t167 = anchor_int(0);
+          memcpy((char*)_ANCH_HPTR(_ks400_anc_192) + _ANCH_IVAL(anchor_int(0)), &_anc_t167, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t168 = anchor_int(3);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex200_anc_190) + ANCHOR_OFFSET_Exercise_prog_len, &_anc_t168, ANCHOR_SIZE_Exercise_prog_len); }
+        { AnchorVal _anc_t168 = anchor_int(2);
+          memcpy((char*)_ANCH_HPTR(_ks400_anc_192) + _ANCH_IVAL(anchor_int(8)), &_anc_t168, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t169 = anchor_int(3);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex200_anc_190) + ANCHOR_OFFSET_Exercise_reps, &_anc_t169, ANCHOR_SIZE_Exercise_reps); }
+        { AnchorVal _anc_t169 = anchor_int(5);
+          memcpy((char*)_ANCH_HPTR(_ks400_anc_192) + _ANCH_IVAL(anchor_int(16)), &_anc_t169, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        AnchorVal _ks201_anc_190 = anchor_alloc(48);
-        { AnchorVal _anc_t170 = anchor_int(5);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks201_anc_190) + _ANCH_IVAL(anchor_int(0)), &_anc_t170, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t170 = anchor_int(10);
+          memcpy((char*)_ANCH_HPTR(_ks400_anc_192) + _ANCH_IVAL(anchor_int(24)), &_anc_t170, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t171 = anchor_int(10);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks201_anc_190) + _ANCH_IVAL(anchor_int(8)), &_anc_t171, sizeof(AnchorVal)); }
+        AnchorVal _pr400_anc_192 = anchor_alloc(32);
+        { AnchorVal _anc_t171 = anchor_int(1);
+          memcpy((char*)_ANCH_HPTR(_pr400_anc_192) + _ANCH_IVAL(anchor_int(0)), &_anc_t171, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t172 = anchor_int(3);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks201_anc_190) + _ANCH_IVAL(anchor_int(16)), &_anc_t172, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t172 = anchor_int(5);
+          memcpy((char*)_ANCH_HPTR(_pr400_anc_192) + _ANCH_IVAL(anchor_int(8)), &_anc_t172, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t173 = anchor_int(8);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks201_anc_190) + _ANCH_IVAL(anchor_int(24)), &_anc_t173, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t173 = anchor_int(6);
+          memcpy((char*)_ANCH_HPTR(_pr400_anc_192) + _ANCH_IVAL(anchor_int(16)), &_anc_t173, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t174 = anchor_int(11);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks201_anc_190) + _ANCH_IVAL(anchor_int(32)), &_anc_t174, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t174 = anchor_int(4);
+          memcpy((char*)_ANCH_HPTR(_pr400_anc_192) + _ANCH_IVAL(anchor_int(24)), &_anc_t174, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t175 = anchor_int(6);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks201_anc_190) + _ANCH_IVAL(anchor_int(40)), &_anc_t175, sizeof(AnchorVal)); }
+        AnchorVal _ex400_anc_192 = anchor_alloc(ANCHOR_SIZEOF_Exercise);
+        { AnchorVal _anc_t175 = _ks400_anc_192;
+          memcpy((char*)_ANCH_HPTR(_ex400_anc_192) + ANCHOR_OFFSET_Exercise_keys, &_anc_t175, ANCHOR_SIZE_Exercise_keys); }
         ANCHOR_NIL;
-        AnchorVal _pr201_anc_190 = anchor_alloc(24);
-        { AnchorVal _anc_t176 = anchor_int(1);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr201_anc_190) + _ANCH_IVAL(anchor_int(0)), &_anc_t176, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t176 = anchor_int(4);
+          memcpy((char*)_ANCH_HPTR(_ex400_anc_192) + ANCHOR_OFFSET_Exercise_num_keys, &_anc_t176, ANCHOR_SIZE_Exercise_num_keys); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t177 = anchor_int(4);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr201_anc_190) + _ANCH_IVAL(anchor_int(8)), &_anc_t177, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t177 = _pr400_anc_192;
+          memcpy((char*)_ANCH_HPTR(_ex400_anc_192) + ANCHOR_OFFSET_Exercise_progression, &_anc_t177, ANCHOR_SIZE_Exercise_progression); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t178 = anchor_int(5);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr201_anc_190) + _ANCH_IVAL(anchor_int(16)), &_anc_t178, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t178 = anchor_int(4);
+          memcpy((char*)_ANCH_HPTR(_ex400_anc_192) + ANCHOR_OFFSET_Exercise_prog_len, &_anc_t178, ANCHOR_SIZE_Exercise_prog_len); }
         ANCHOR_NIL;
-        AnchorVal _ex201_anc_190 = anchor_alloc(ANCHOR_SIZEOF_Exercise);
-        { AnchorVal _anc_t179 = _ks201_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex201_anc_190) + ANCHOR_OFFSET_Exercise_keys, &_anc_t179, ANCHOR_SIZE_Exercise_keys); }
+        { AnchorVal _anc_t179 = anchor_int(10);
+          memcpy((char*)_ANCH_HPTR(_ex400_anc_192) + ANCHOR_OFFSET_Exercise_reps, &_anc_t179, ANCHOR_SIZE_Exercise_reps); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t180 = anchor_int(6);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex201_anc_190) + ANCHOR_OFFSET_Exercise_num_keys, &_anc_t180, ANCHOR_SIZE_Exercise_num_keys); }
+        AnchorVal _ep400_anc_192 = anchor_alloc(8);
+        { AnchorVal _anc_t180 = _ex400_anc_192;
+          memcpy((char*)_ANCH_HPTR(_ep400_anc_192) + _ANCH_IVAL(anchor_int(0)), &_anc_t180, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t181 = _pr201_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex201_anc_190) + ANCHOR_OFFSET_Exercise_progression, &_anc_t181, ANCHOR_SIZE_Exercise_progression); }
+        { AnchorVal _anc_t181 = anchor_ext((void*)"I - V - VI - IV (C, D, F, B♭)");
+          memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(96)), &_anc_t181, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t182 = anchor_int(3);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex201_anc_190) + ANCHOR_OFFSET_Exercise_prog_len, &_anc_t182, ANCHOR_SIZE_Exercise_prog_len); }
+        { AnchorVal _anc_t182 = _ep400_anc_192;
+          memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(104)), &_anc_t182, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        { AnchorVal _anc_t183 = anchor_int(3);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex201_anc_190) + ANCHOR_OFFSET_Exercise_reps, &_anc_t183, ANCHOR_SIZE_Exercise_reps); }
-        ANCHOR_NIL;
-        AnchorVal _ep200_anc_190 = anchor_alloc(16);
-        { AnchorVal _anc_t184 = _ex200_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ep200_anc_190) + _ANCH_IVAL(anchor_int(0)), &_anc_t184, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t185 = _ex201_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ep200_anc_190) + _ANCH_IVAL(anchor_int(8)), &_anc_t185, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t186 = anchor_ext((void*)"I - IV - V (Major)");
-          __builtin_memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(48)), &_anc_t186, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t187 = _ep200_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(56)), &_anc_t187, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t188 = anchor_int(2);
-          __builtin_memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(64)), &_anc_t188, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        AnchorVal _ks300_anc_190 = anchor_alloc(24);
-        { AnchorVal _anc_t189 = anchor_int(25);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks300_anc_190) + _ANCH_IVAL(anchor_int(0)), &_anc_t189, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t190 = anchor_int(18);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks300_anc_190) + _ANCH_IVAL(anchor_int(8)), &_anc_t190, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t191 = anchor_int(20);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks300_anc_190) + _ANCH_IVAL(anchor_int(16)), &_anc_t191, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        AnchorVal _pr300_anc_190 = anchor_alloc(24);
-        { AnchorVal _anc_t192 = anchor_int(1);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr300_anc_190) + _ANCH_IVAL(anchor_int(0)), &_anc_t192, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t193 = anchor_int(4);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr300_anc_190) + _ANCH_IVAL(anchor_int(8)), &_anc_t193, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t194 = anchor_int(5);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr300_anc_190) + _ANCH_IVAL(anchor_int(16)), &_anc_t194, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        AnchorVal _ex300_anc_190 = anchor_alloc(ANCHOR_SIZEOF_Exercise);
-        { AnchorVal _anc_t195 = _ks300_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex300_anc_190) + ANCHOR_OFFSET_Exercise_keys, &_anc_t195, ANCHOR_SIZE_Exercise_keys); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t196 = anchor_int(3);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex300_anc_190) + ANCHOR_OFFSET_Exercise_num_keys, &_anc_t196, ANCHOR_SIZE_Exercise_num_keys); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t197 = _pr300_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex300_anc_190) + ANCHOR_OFFSET_Exercise_progression, &_anc_t197, ANCHOR_SIZE_Exercise_progression); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t198 = anchor_int(3);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex300_anc_190) + ANCHOR_OFFSET_Exercise_prog_len, &_anc_t198, ANCHOR_SIZE_Exercise_prog_len); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t199 = anchor_int(3);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex300_anc_190) + ANCHOR_OFFSET_Exercise_reps, &_anc_t199, ANCHOR_SIZE_Exercise_reps); }
-        ANCHOR_NIL;
-        AnchorVal _ks301_anc_190 = anchor_alloc(48);
-        { AnchorVal _anc_t200 = anchor_int(25);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks301_anc_190) + _ANCH_IVAL(anchor_int(0)), &_anc_t200, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t201 = anchor_int(18);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks301_anc_190) + _ANCH_IVAL(anchor_int(8)), &_anc_t201, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t202 = anchor_int(20);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks301_anc_190) + _ANCH_IVAL(anchor_int(16)), &_anc_t202, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t203 = anchor_int(23);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks301_anc_190) + _ANCH_IVAL(anchor_int(24)), &_anc_t203, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t204 = anchor_int(16);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks301_anc_190) + _ANCH_IVAL(anchor_int(32)), &_anc_t204, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t205 = anchor_int(21);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ks301_anc_190) + _ANCH_IVAL(anchor_int(40)), &_anc_t205, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        AnchorVal _pr301_anc_190 = anchor_alloc(32);
-        { AnchorVal _anc_t206 = anchor_int(1);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr301_anc_190) + _ANCH_IVAL(anchor_int(0)), &_anc_t206, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t207 = anchor_int(5);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr301_anc_190) + _ANCH_IVAL(anchor_int(8)), &_anc_t207, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t208 = anchor_int(6);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr301_anc_190) + _ANCH_IVAL(anchor_int(16)), &_anc_t208, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t209 = anchor_int(7);
-          __builtin_memcpy((char*)_ANCH_HPTR(_pr301_anc_190) + _ANCH_IVAL(anchor_int(24)), &_anc_t209, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        AnchorVal _ex301_anc_190 = anchor_alloc(ANCHOR_SIZEOF_Exercise);
-        { AnchorVal _anc_t210 = _ks301_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex301_anc_190) + ANCHOR_OFFSET_Exercise_keys, &_anc_t210, ANCHOR_SIZE_Exercise_keys); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t211 = anchor_int(6);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex301_anc_190) + ANCHOR_OFFSET_Exercise_num_keys, &_anc_t211, ANCHOR_SIZE_Exercise_num_keys); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t212 = _pr301_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex301_anc_190) + ANCHOR_OFFSET_Exercise_progression, &_anc_t212, ANCHOR_SIZE_Exercise_progression); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t213 = anchor_int(4);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex301_anc_190) + ANCHOR_OFFSET_Exercise_prog_len, &_anc_t213, ANCHOR_SIZE_Exercise_prog_len); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t214 = anchor_int(3);
-          __builtin_memcpy((char*)_ANCH_HPTR(_ex301_anc_190) + ANCHOR_OFFSET_Exercise_reps, &_anc_t214, ANCHOR_SIZE_Exercise_reps); }
-        ANCHOR_NIL;
-        AnchorVal _ep300_anc_190 = anchor_alloc(16);
-        { AnchorVal _anc_t215 = _ex300_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ep300_anc_190) + _ANCH_IVAL(anchor_int(0)), &_anc_t215, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t216 = _ex301_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(_ep300_anc_190) + _ANCH_IVAL(anchor_int(8)), &_anc_t216, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t217 = anchor_ext((void*)"Minor Keys");
-          __builtin_memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(72)), &_anc_t217, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t218 = _ep300_anc_190;
-          __builtin_memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(80)), &_anc_t218, sizeof(AnchorVal)); }
-        ANCHOR_NIL;
-        { AnchorVal _anc_t219 = anchor_int(2);
-          __builtin_memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(88)), &_anc_t219, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t183 = anchor_int(1);
+          memcpy((char*)_ANCH_HPTR(all_lessons) + _ANCH_IVAL(anchor_int(112)), &_anc_t183, sizeof(AnchorVal)); }
         ANCHOR_NIL;
         if (_ANCH_IVAL(list_lessons)) {
             print_lesson_list(all_lessons, num_all_lessons);
-            _anchor_arena_top = _anc_arena__anc_t99.prev;
+            _anchor_arena_top = _anc_arena__anc_t108.prev;
             return 0;
         }
         AnchorVal input_buffer_size = anchor_int(128);
@@ -1484,56 +1356,59 @@ int main(int _argc_raw, char** _argv_raw) {
         AnchorVal event = anchor_alloc(256);
         AnchorVal active_notes = anchor_alloc((size_t)_ANCH_IVAL(anchor_mul(anchor_int(16), anchor_int(8))));
         AnchorVal note_count = anchor_alloc(8);
-        { AnchorVal _anc_t220 = anchor_int(0);
-          __builtin_memcpy((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t220, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t184 = anchor_int(0);
+          memcpy((char*)_ANCH_HPTR(note_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t184, sizeof(AnchorVal)); }
         ANCHOR_NIL;
         AnchorVal last_notes = anchor_alloc((size_t)_ANCH_IVAL(anchor_mul(anchor_int(16), anchor_int(8))));
         AnchorVal last_count = anchor_alloc(8);
-        { AnchorVal _anc_t221 = anchor_int(0);
-          __builtin_memcpy((char*)_ANCH_HPTR(last_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t221, sizeof(AnchorVal)); }
+        { AnchorVal _anc_t185 = anchor_int(0);
+          memcpy((char*)_ANCH_HPTR(last_count) + _ANCH_IVAL(anchor_int(0)), &_anc_t185, sizeof(AnchorVal)); }
         ANCHOR_NIL;
-        long _anc_t222_raw = time((void*)0);
-        AnchorVal _anc_t222 = anchor_int((intptr_t)_anc_t222_raw);
-        srand((unsigned int)_ANCH_IVAL(_anc_t222));
-        int _anc_t223_raw = Pm_Initialize();
-        AnchorVal _anc_t223 = anchor_int((intptr_t)_anc_t223_raw);
-        if (_ANCH_IVAL(anchor_ne(_anc_t223, anchor_int(0)))) {
+        long _anc_t186_raw = time((void*)0);
+        AnchorVal _anc_t186 = anchor_int((intptr_t)_anc_t186_raw);
+        srand((unsigned int)_ANCH_IVAL(_anc_t186));
+        int _anc_t187_raw = Pm_Initialize();
+        AnchorVal _anc_t187 = anchor_int((intptr_t)_anc_t187_raw);
+        if (_ANCH_IVAL(anchor_ne(_anc_t187, anchor_int(0)))) {
             printf("Failed to initialize PortMidi\n");
-            _anchor_arena_top = _anc_arena__anc_t99.prev;
+            _anchor_arena_top = _anc_arena__anc_t108.prev;
             return 1;
         }
         AnchorVal device_id = find_midi_input_device(select_device);
         if (_ANCH_IVAL(anchor_eq(device_id, anchor_int(-1)))) {
             printf("No MIDI input device found\n");
-            _anchor_arena_top = _anc_arena__anc_t99.prev;
+            _anchor_arena_top = _anc_arena__anc_t108.prev;
             return 1;
         }
-        int _anc_t224_raw = Pm_OpenInput(((void*)_anch_ptr(midi)), (int)_ANCH_IVAL(device_id), 0, (int)_ANCH_IVAL(input_buffer_size), (void*)0, 0);
-        AnchorVal _anc_t224 = anchor_int((intptr_t)_anc_t224_raw);
-        if (_ANCH_IVAL(anchor_ne(_anc_t224, anchor_int(0)))) {
+        int _anc_t188_raw = Pm_OpenInput(((void*)_anch_ptr(midi)), (int)_ANCH_IVAL(device_id), 0, (int)_ANCH_IVAL(input_buffer_size), (void*)0, 0);
+        AnchorVal _anc_t188 = anchor_int((intptr_t)_anc_t188_raw);
+        if (_ANCH_IVAL(anchor_ne(_anc_t188, anchor_int(0)))) {
             printf("Failed to open MIDI input\n");
-            _anchor_arena_top = _anc_arena__anc_t99.prev;
+            _anchor_arena_top = _anc_arena__anc_t108.prev;
             return 1;
         }
-        AnchorVal _anc_t225;
+        AnchorVal _anc_t189;
         if (_ANCH_IVAL(anchor_ne(lesson_num, anchor_int(-1)))) {
-            _anc_t225 = ({ if (_ANCH_IVAL((AnchorVal)(!!anchor_lt(lesson_num, anchor_int(1)) || !!anchor_gt(lesson_num, num_all_lessons)))) {
-    printf("Lesson %d does not exist\n", (int)_ANCH_IVAL(lesson_num));
-    _anchor_arena_top = _anc_arena__anc_t99.prev;
-    return 1;
-}
-anchor_sub(lesson_num, anchor_int(1)); });
+            AnchorVal _anc_t190;
+            {
+                if (_ANCH_IVAL((AnchorVal)(!!anchor_lt(lesson_num, anchor_int(1)) || !!anchor_gt(lesson_num, num_all_lessons)))) {
+                    printf("Lesson %d does not exist\n", (int)_ANCH_IVAL(lesson_num));
+                    _anchor_arena_top = _anc_arena__anc_t108.prev;
+                    return 1;
+                }
+                _anc_t190 = anchor_sub(lesson_num, anchor_int(1));
+            }
+            _anc_t189 = _anc_t190;
         } else {
-            _anc_t225 = select_lesson_menu(all_lessons, num_all_lessons);
+            _anc_t189 = select_lesson_menu(all_lessons, num_all_lessons);
         }
-        AnchorVal chosen_idx = _anc_t225;
+        AnchorVal chosen_idx = _anc_t189;
         AnchorVal chosen_lesson = anchor_add(all_lessons, anchor_mul(chosen_idx, anchor_int(24)));
-        AnchorVal _anc_t226 = 0;
-        __builtin_memcpy(&_anc_t226, (char*)_ANCH_HPTR(chosen_lesson) + ANCHOR_OFFSET_Lesson_name, ANCHOR_SIZE_Lesson_name);
-        AnchorVal lesson_name = _anc_t226;
+        AnchorVal _anc_t191 = *(AnchorVal*)((char*)_ANCH_HPTR(chosen_lesson) + ANCHOR_OFFSET_Lesson_name);
+        AnchorVal lesson_name = _anc_t191;
         printf("\n\x1B[96mStarting: %s\x1B[0m\n", ((char*)_anch_ptr(lesson_name)));
         run_lesson(chosen_lesson, midi, event, active_notes, note_count, last_notes, last_count, note_names, debug);
-        _anchor_arena_top = _anc_arena__anc_t99.prev;
+        _anchor_arena_top = _anc_arena__anc_t108.prev;
     }
     return 0;
 }
